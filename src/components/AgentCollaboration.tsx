@@ -149,11 +149,9 @@ export const AgentCollaboration = ({ projectId, currentAgent }: AgentCollaborati
 
   return (
     <div className="flex flex-col space-y-4">
+      <CollaborationRequestForm onSubmit={handleCollaborationRequest} />
       <div className="flex flex-col space-y-4">
-        <div className="flex items-center justify-between">
-          <CollaborationRequestForm onSubmit={handleCollaborationRequest} />
-          <CollaborationHistory logs={collaborationLogs} />
-        </div>
+        <CollaborationHistory logs={collaborationLogs} />
         <CollaborationMetrics workflowId={projectId} />
       </div>
     </div>
