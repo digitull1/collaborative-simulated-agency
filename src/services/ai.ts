@@ -1,9 +1,17 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { toast } from "@/hooks/use-toast";
 
+// Get API key from Supabase secrets
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
+// Validate API key before initializing
 if (!GEMINI_API_KEY) {
-  console.error("Missing Gemini API key. Please set VITE_GEMINI_API_KEY in your environment variables.");
+  console.error("Missing Gemini API key");
+  toast({
+    title: "Configuration Error",
+    description: "Gemini API key is missing. Please check your configuration.",
+    variant: "destructive",
+  });
 }
 
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY || "");
@@ -48,7 +56,7 @@ export const generateAgentResponse = async (
   chatHistory: Array<{ sender: string; content: string }>
 ) => {
   if (!GEMINI_API_KEY) {
-    throw new Error("Gemini API key not found. Please set up your API key in the project settings.");
+    throw new Error("Gemini API key not configured. Please set up your API key in the project settings.");
   }
 
   const agent = AGENT_ROLES[agentName];
@@ -56,9 +64,10 @@ export const generateAgentResponse = async (
     throw new Error("Invalid agent name");
   }
 
-  const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+  try {
+    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
 
-  const prompt = `You are ${agent.name}, the ${agent.role} at AIGency, a marketing agency.
+    const prompt = `You are ${agent.name}, the ${agent.role} at AIGency, a marketing agency.
 Your personality: ${agent.personality}
 
 Chat history:
@@ -68,12 +77,16 @@ User's message: ${userMessage}
 
 Respond in character as ${agent.name}, keeping your response focused on your role as ${agent.role}. Be professional but show personality.`;
 
-  try {
     const result = await model.generateContent(prompt);
     const response = result.response;
     return response.text();
   } catch (error) {
     console.error("Error generating response:", error);
-    throw new Error("Failed to generate response. Please ensure your API key is valid.");
+    toast({
+      title: "Error",
+      description: "Failed to generate response. Please check your API key configuration.",
+      variant: "destructive",
+    });
+    throw error;
   }
 };
