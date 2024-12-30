@@ -1,20 +1,32 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { toast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
-// Get API key from environment variables
-const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+// Initialize with empty key, will be set after fetching from Supabase
+let GEMINI_API_KEY = '';
 
-// Validate API key before initializing
-if (!GEMINI_API_KEY) {
-  console.error("Missing Gemini API key");
-  toast({
-    title: "Configuration Error",
-    description: "Gemini API key is missing. Please check your configuration.",
-    variant: "destructive",
-  });
-}
-
-const genAI = new GoogleGenerativeAI(GEMINI_API_KEY || "");
+// Function to fetch API key from Supabase
+const fetchApiKey = async () => {
+  try {
+    const { data, error } = await supabase.functions.invoke('get-secret', {
+      body: { secretName: 'GEMINI_API_KEY' }
+    });
+    
+    if (error) throw error;
+    if (!data?.secret) throw new Error('API key not found');
+    
+    GEMINI_API_KEY = data.secret;
+    return true;
+  } catch (error) {
+    console.error('Error fetching Gemini API key:', error);
+    toast({
+      title: "Configuration Error",
+      description: "Failed to fetch Gemini API key. Please check your Supabase configuration.",
+      variant: "destructive",
+    });
+    return false;
+  }
+};
 
 export type AgentRole = {
   name: string;
@@ -55,8 +67,12 @@ export const generateAgentResponse = async (
   userMessage: string,
   chatHistory: Array<{ sender: string; content: string }>
 ) => {
+  // Ensure we have the API key
   if (!GEMINI_API_KEY) {
-    throw new Error("Gemini API key not configured. Please set up your API key in the project settings.");
+    const success = await fetchApiKey();
+    if (!success) {
+      throw new Error("Failed to initialize Gemini API. Please check your configuration.");
+    }
   }
 
   const agent = AGENT_ROLES[agentName];
@@ -65,7 +81,7 @@ export const generateAgentResponse = async (
   }
 
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+    const model = new GoogleGenerativeAI(GEMINI_API_KEY).getGenerativeModel({ model: "gemini-pro" });
 
     const prompt = `You are ${agent.name}, the ${agent.role} at AIGency, a marketing agency.
 Your personality: ${agent.personality}
@@ -84,7 +100,7 @@ Respond in character as ${agent.name}, keeping your response focused on your rol
     console.error("Error generating response:", error);
     toast({
       title: "Error",
-      description: "Failed to generate response. Please check your API key configuration.",
+      description: "Failed to generate response. Please try again.",
       variant: "destructive",
     });
     throw error;
