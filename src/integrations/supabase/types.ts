@@ -173,6 +173,44 @@ export type Database = {
         }
         Relationships: []
       }
+      context_memory: {
+        Row: {
+          agent_name: string
+          conversation_history: Json | null
+          id: string
+          last_updated: string | null
+          project_details: Json | null
+          thread_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          agent_name: string
+          conversation_history?: Json | null
+          id?: string
+          last_updated?: string | null
+          project_details?: Json | null
+          thread_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          agent_name?: string
+          conversation_history?: Json | null
+          id?: string
+          last_updated?: string | null
+          project_details?: Json | null
+          thread_id?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "context_memory_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversation_follow_ups: {
         Row: {
           completed: boolean | null

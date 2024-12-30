@@ -1,13 +1,12 @@
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Send } from "lucide-react";
 import { useState, useEffect } from "react";
-import { ChatMessage } from "@/components/ChatMessage";
 import { generateAgentResponse } from "@/services/ai";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import type { ChatTarget } from "@/components/SlackLayout";
+import { Messages } from "@/components/Messages";
+import { MessageInput } from "@/components/MessageInput";
+import { ContextPanel } from "@/components/ContextPanel";
+import { useContextMemory } from "@/hooks/useContextMemory";
 
 interface ChatAreaProps {
   chatTarget: ChatTarget;
@@ -25,6 +24,7 @@ export const ChatArea = ({ chatTarget }: ChatAreaProps) => {
   const [newMessage, setNewMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [threadId, setThreadId] = useState<string | null>(null);
+  const contextMemory = useContextMemory(threadId);
 
   useEffect(() => {
     const loadThread = async () => {
@@ -56,7 +56,6 @@ export const ChatArea = ({ chatTarget }: ChatAreaProps) => {
 
           if (messagesError) throw messagesError;
 
-          // Convert messages to the expected format
           const formattedMessages = threadMessages.map((msg, index) => ({
             id: index + 1,
             content: msg.content,
@@ -67,7 +66,7 @@ export const ChatArea = ({ chatTarget }: ChatAreaProps) => {
 
           setMessages(formattedMessages);
         } else {
-          // Create new thread with proper participants array
+          // Create new thread
           const { data: newThread, error: createError } = await supabase
             .from('threads')
             .insert([{
@@ -83,7 +82,6 @@ export const ChatArea = ({ chatTarget }: ChatAreaProps) => {
           if (createError) throw createError;
 
           setThreadId(newThread.id);
-          // Initialize with welcome message
           const welcomeMessage = {
             id: 1,
             content: chatTarget.type === "channel" 
@@ -121,7 +119,6 @@ export const ChatArea = ({ chatTarget }: ChatAreaProps) => {
           },
           (payload) => {
             const newMessage = payload.new;
-            // Only add the message if it's not already in the messages array
             setMessages(prev => {
               const messageExists = prev.some(msg => 
                 msg.content === newMessage.content && 
@@ -166,7 +163,6 @@ export const ChatArea = ({ chatTarget }: ChatAreaProps) => {
     setIsLoading(true);
 
     try {
-      // Save message to thread
       if (threadId) {
         const { error: messageError } = await supabase
           .from('thread_messages')
@@ -187,7 +183,6 @@ export const ChatArea = ({ chatTarget }: ChatAreaProps) => {
       
       const response = await generateAgentResponse(agentName, newMessage, chatHistory);
       
-      // Save agent response to thread
       if (threadId) {
         const { error: responseError } = await supabase
           .from('thread_messages')
@@ -199,8 +194,6 @@ export const ChatArea = ({ chatTarget }: ChatAreaProps) => {
 
         if (responseError) throw responseError;
       }
-
-      // Don't add the agent's message here as it will come through the subscription
     } catch (error) {
       console.error('Error sending message:', error);
       toast({
@@ -221,44 +214,21 @@ export const ChatArea = ({ chatTarget }: ChatAreaProps) => {
         </h2>
       </div>
       
-      <ScrollArea className="flex-1 p-4">
-        <div className="space-y-4">
-          {messages.map((message) => (
-            <ChatMessage key={message.id} message={message} />
-          ))}
-          {isLoading && (
-            <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-              <div className="animate-pulse">
-                {chatTarget.name} is typing...
-              </div>
-            </div>
-          )}
-        </div>
-      </ScrollArea>
+      {contextMemory && <ContextPanel contextMemory={contextMemory} />}
       
-      <div className="border-t border-border p-4">
-        <div className="flex space-x-2">
-          <Input
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            placeholder={`Message ${chatTarget.type === "channel" ? `#${chatTarget.name}` : chatTarget.name}...`}
-            disabled={isLoading}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                handleSendMessage();
-              }
-            }}
-          />
-          <Button 
-            onClick={handleSendMessage} 
-            size="icon"
-            disabled={isLoading}
-          >
-            <Send className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
+      <Messages 
+        messages={messages}
+        isLoading={isLoading}
+        chatTargetName={chatTarget.name}
+      />
+      
+      <MessageInput
+        newMessage={newMessage}
+        setNewMessage={setNewMessage}
+        handleSendMessage={handleSendMessage}
+        isLoading={isLoading}
+        placeholder={`Message ${chatTarget.type === "channel" ? `#${chatTarget.name}` : chatTarget.name}...`}
+      />
     </div>
   );
 };
