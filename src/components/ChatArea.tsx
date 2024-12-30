@@ -1,12 +1,14 @@
 import { useState, useEffect } from "react";
 import { generateAgentResponse } from "@/services/ai";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import type { ChatTarget } from "@/components/SlackLayout";
 import { Messages } from "@/components/Messages";
 import { MessageInput } from "@/components/MessageInput";
 import { ContextDrawer } from "@/components/ContextDrawer";
 import { WorkflowDashboard } from "@/components/WorkflowDashboard";
+import { TaskList } from "@/components/TaskList";
+import { AgentCollaboration } from "@/components/AgentCollaboration";
 import { useContextMemory } from "@/hooks/useContextMemory";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -214,6 +216,12 @@ export const ChatArea = ({ chatTarget }: ChatAreaProps) => {
         <h2 className="text-lg font-semibold">
           {chatTarget.type === "channel" ? `#${chatTarget.name}` : chatTarget.name}
         </h2>
+        {chatTarget.type === "agent" && (
+          <AgentCollaboration
+            projectId={threadId || ""}
+            currentAgent={chatTarget.name}
+          />
+        )}
       </div>
       
       {contextMemory && <ContextDrawer contextMemory={contextMemory} />}
@@ -221,6 +229,7 @@ export const ChatArea = ({ chatTarget }: ChatAreaProps) => {
       <Tabs defaultValue="chat" className="flex-1">
         <TabsList className="mx-4 mt-2">
           <TabsTrigger value="chat">Chat</TabsTrigger>
+          <TabsTrigger value="tasks">Tasks</TabsTrigger>
           <TabsTrigger value="workflows">Workflows</TabsTrigger>
         </TabsList>
         
@@ -238,6 +247,12 @@ export const ChatArea = ({ chatTarget }: ChatAreaProps) => {
             isLoading={isLoading}
             placeholder={`Message ${chatTarget.type === "channel" ? `#${chatTarget.name}` : chatTarget.name}...`}
           />
+        </TabsContent>
+
+        <TabsContent value="tasks" className="flex-1 p-4">
+          {threadId && (
+            <TaskList projectId={threadId} currentAgent={chatTarget.name} />
+          )}
         </TabsContent>
         
         <TabsContent value="workflows" className="flex-1">

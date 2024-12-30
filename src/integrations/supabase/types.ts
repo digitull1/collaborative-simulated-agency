@@ -113,6 +113,44 @@ export type Database = {
         }
         Relationships: []
       }
+      agent_collaboration_logs: {
+        Row: {
+          created_at: string | null
+          id: string
+          message: string
+          project_id: string | null
+          requesting_agent: string
+          status: string | null
+          target_agent: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          message: string
+          project_id?: string | null
+          requesting_agent: string
+          status?: string | null
+          target_agent: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          message?: string
+          project_id?: string | null
+          requesting_agent?: string
+          status?: string | null
+          target_agent?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_collaboration_logs_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       content_blocks: {
         Row: {
           age_range: unknown
@@ -554,6 +592,50 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      tasks: {
+        Row: {
+          agent_name: string
+          created_at: string | null
+          created_by: string
+          dependencies: Json | null
+          description: string
+          id: string
+          last_updated: string | null
+          project_id: string | null
+          status: string | null
+        }
+        Insert: {
+          agent_name: string
+          created_at?: string | null
+          created_by: string
+          dependencies?: Json | null
+          description: string
+          id?: string
+          last_updated?: string | null
+          project_id?: string | null
+          status?: string | null
+        }
+        Update: {
+          agent_name?: string
+          created_at?: string | null
+          created_by?: string
+          dependencies?: Json | null
+          description?: string
+          id?: string
+          last_updated?: string | null
+          project_id?: string | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tasks_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "threads"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       thread_messages: {
         Row: {

@@ -34,17 +34,7 @@ export const NotificationPanel = () => {
 
         if (error) throw error;
         
-        // Ensure data matches our Notification type
-        const typedNotifications: Notification[] = data.map(item => ({
-          id: item.id,
-          type: item.type,
-          content: item.content,
-          sender: item.sender,
-          timestamp: item.timestamp,
-          read: item.read || false
-        }));
-        
-        setNotifications(typedNotifications);
+        setNotifications(data);
       } catch (error) {
         console.error('Error loading notifications:', error);
         toast({
@@ -68,15 +58,7 @@ export const NotificationPanel = () => {
           table: 'notifications'
         },
         (payload) => {
-          const newNotification: Notification = {
-            id: payload.new.id,
-            type: payload.new.type,
-            content: payload.new.content,
-            sender: payload.new.sender,
-            timestamp: payload.new.timestamp,
-            read: payload.new.read || false
-          };
-          setNotifications(prev => [newNotification, ...prev]);
+          setNotifications(prev => [payload.new as Notification, ...prev]);
         }
       )
       .subscribe();
