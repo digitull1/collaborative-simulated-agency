@@ -1,6 +1,12 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY || "");
+const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+
+if (!GEMINI_API_KEY) {
+  console.error("Missing Gemini API key. Please set VITE_GEMINI_API_KEY in your environment variables.");
+}
+
+const genAI = new GoogleGenerativeAI(GEMINI_API_KEY || "");
 
 export type AgentRole = {
   name: string;
@@ -41,6 +47,10 @@ export const generateAgentResponse = async (
   userMessage: string,
   chatHistory: Array<{ sender: string; content: string }>
 ) => {
+  if (!GEMINI_API_KEY) {
+    throw new Error("Gemini API key not found. Please set up your API key in the project settings.");
+  }
+
   const agent = AGENT_ROLES[agentName];
   if (!agent) {
     throw new Error("Invalid agent name");
@@ -64,6 +74,6 @@ Respond in character as ${agent.name}, keeping your response focused on your rol
     return response.text();
   } catch (error) {
     console.error("Error generating response:", error);
-    throw new Error("Failed to generate response");
+    throw new Error("Failed to generate response. Please ensure your API key is valid.");
   }
 };
