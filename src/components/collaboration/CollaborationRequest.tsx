@@ -4,15 +4,15 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { MessageSquarePlus } from "lucide-react";
-import type { CollaborationRequest } from "@/types/collaboration";
+import type { CollaborationRequestData } from "@/types/collaboration";
 
-interface CollaborationRequestProps {
-  onSubmit: (request: CollaborationRequest) => Promise<void>;
+interface CollaborationRequestFormProps {
+  onSubmit: (request: CollaborationRequestData) => Promise<void>;
 }
 
-export const CollaborationRequest = ({ onSubmit }: CollaborationRequestProps) => {
+export const CollaborationRequestForm = ({ onSubmit }: CollaborationRequestFormProps) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [request, setRequest] = useState<CollaborationRequest>({
+  const [request, setRequest] = useState<CollaborationRequestData>({
     target_agent: "",
     message: "",
   });

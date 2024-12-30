@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import type { CollaborationLog, CollaborationRequest } from "@/types/collaboration";
-import { CollaborationRequest } from "./collaboration/CollaborationRequest";
+import type { CollaborationLog, CollaborationRequestData } from "@/types/collaboration";
+import { CollaborationRequestForm } from "./collaboration/CollaborationRequest";
 import { CollaborationHistory } from "./collaboration/CollaborationHistory";
 import { CollaborationMetrics } from "./collaboration/CollaborationMetrics";
 
@@ -59,7 +59,7 @@ export const AgentCollaboration = ({ projectId, currentAgent }: AgentCollaborati
     };
   }, [projectId]);
 
-  const handleCollaborationRequest = async (request: CollaborationRequest) => {
+  const handleCollaborationRequest = async (request: CollaborationRequestData) => {
     if (!projectId) {
       toast({
         title: "Error",
@@ -126,7 +126,7 @@ export const AgentCollaboration = ({ projectId, currentAgent }: AgentCollaborati
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <CollaborationRequest onSubmit={handleCollaborationRequest} />
+        <CollaborationRequestForm onSubmit={handleCollaborationRequest} />
         <CollaborationHistory logs={collaborationLogs} />
       </div>
       <CollaborationMetrics workflowId={projectId} />
