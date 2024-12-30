@@ -17,7 +17,10 @@ export const AgentCollaboration = ({ projectId, currentAgent }: AgentCollaborati
 
   useEffect(() => {
     const loadCollaborationLogs = async () => {
-      if (!projectId) return;
+      if (!projectId) {
+        console.log('No project ID provided');
+        return;
+      }
       
       try {
         const { data, error } = await supabase
@@ -27,37 +30,45 @@ export const AgentCollaboration = ({ projectId, currentAgent }: AgentCollaborati
           .order('created_at', { ascending: false });
 
         if (error) throw error;
-        setCollaborationLogs(data);
+        setCollaborationLogs(data || []);
       } catch (error) {
         console.error('Error loading collaboration logs:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load collaboration logs. Please try again.",
+          variant: "destructive",
+        });
       }
     };
 
     loadCollaborationLogs();
 
-    const channel = supabase
-      .channel('agent_collaboration')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'agent_collaboration_logs',
-          filter: `project_id=eq.${projectId}`
-        },
-        (payload) => {
-          if (payload.eventType === 'INSERT') {
-            const newLog = payload.new as CollaborationLog;
-            setCollaborationLogs(prev => [newLog, ...prev]);
+    // Only set up real-time subscription if we have a valid projectId
+    if (projectId) {
+      const channel = supabase
+        .channel('agent_collaboration')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'agent_collaboration_logs',
+            filter: `project_id=eq.${projectId}`
+          },
+          (payload) => {
+            if (payload.eventType === 'INSERT') {
+              const newLog = payload.new as CollaborationLog;
+              setCollaborationLogs(prev => [newLog, ...prev]);
+            }
           }
-        }
-      )
-      .subscribe();
+        )
+        .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [projectId]);
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
+  }, [projectId, toast]);
 
   const handleCollaborationRequest = async (request: CollaborationRequestData) => {
     if (!projectId) {
@@ -85,7 +96,7 @@ export const AgentCollaboration = ({ projectId, currentAgent }: AgentCollaborati
       if (logError) throw logError;
 
       // Record metrics for the collaboration
-      await supabase
+      const { error: metricsError } = await supabase
         .from("collaboration_metrics")
         .insert([
           {
@@ -97,8 +108,10 @@ export const AgentCollaboration = ({ projectId, currentAgent }: AgentCollaborati
           },
         ]);
 
+      if (metricsError) throw metricsError;
+
       // Create a notification for the target agent
-      await supabase
+      const { error: notificationError } = await supabase
         .from("notifications")
         .insert([
           {
@@ -108,6 +121,8 @@ export const AgentCollaboration = ({ projectId, currentAgent }: AgentCollaborati
             thread_id: projectId,
           },
         ]);
+
+      if (notificationError) throw notificationError;
 
       toast({
         title: "Success",
@@ -123,13 +138,24 @@ export const AgentCollaboration = ({ projectId, currentAgent }: AgentCollaborati
     }
   };
 
+  // If no projectId is provided, show a message
+  if (!projectId) {
+    return (
+      <div className="flex items-center justify-center p-4 text-muted-foreground">
+        No project selected
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col space-y-4">
-      <div className="flex items-center justify-between">
-        <CollaborationRequestForm onSubmit={handleCollaborationRequest} />
-        <CollaborationHistory logs={collaborationLogs} />
+      <div className="flex flex-col space-y-4">
+        <div className="flex items-center justify-between">
+          <CollaborationRequestForm onSubmit={handleCollaborationRequest} />
+          <CollaborationHistory logs={collaborationLogs} />
+        </div>
+        <CollaborationMetrics workflowId={projectId} />
       </div>
-      <CollaborationMetrics workflowId={projectId} />
     </div>
   );
 };

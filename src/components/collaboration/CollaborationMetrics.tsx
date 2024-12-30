@@ -12,7 +12,6 @@ export const CollaborationMetrics = ({ workflowId }: { workflowId: string }) => 
 
   useEffect(() => {
     const loadMetrics = async () => {
-      // Only proceed if workflowId is valid
       if (!workflowId) {
         console.log('No workflow ID provided');
         return;
@@ -71,22 +70,6 @@ export const CollaborationMetrics = ({ workflowId }: { workflowId: string }) => 
       };
     }
   }, [workflowId]);
-
-  // If no workflowId, show a message
-  if (!workflowId) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Collaboration Metrics</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-center text-muted-foreground">
-            No workflow selected
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
 
   return (
     <Card>
