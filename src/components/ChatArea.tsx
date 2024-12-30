@@ -56,13 +56,16 @@ export const ChatArea = ({ chatTarget }: ChatAreaProps) => {
 
           if (messagesError) throw messagesError;
 
-          setMessages(threadMessages.map((msg, index) => ({
+          // Convert messages to the expected format
+          const formattedMessages = threadMessages.map((msg, index) => ({
             id: index + 1,
             content: msg.content,
             sender: msg.sender,
             timestamp: new Date(msg.timestamp),
             agentId: chatTarget.type === 'agent' ? Number(chatTarget.id) : undefined,
-          })));
+          }));
+
+          setMessages(formattedMessages);
         } else {
           // Create new thread with proper participants array
           const { data: newThread, error: createError } = await supabase
@@ -81,7 +84,7 @@ export const ChatArea = ({ chatTarget }: ChatAreaProps) => {
 
           setThreadId(newThread.id);
           // Initialize with welcome message
-          setMessages([{
+          const welcomeMessage = {
             id: 1,
             content: chatTarget.type === "channel" 
               ? `Welcome to #${chatTarget.name}! How can our team help you today?`
@@ -89,7 +92,8 @@ export const ChatArea = ({ chatTarget }: ChatAreaProps) => {
             sender: chatTarget.type === "channel" ? "System" : chatTarget.name,
             timestamp: new Date(),
             agentId: chatTarget.type === "agent" ? Number(chatTarget.id) : undefined,
-          }]);
+          };
+          setMessages([welcomeMessage]);
         }
       } catch (error) {
         console.error('Error loading thread:', error);
@@ -104,30 +108,46 @@ export const ChatArea = ({ chatTarget }: ChatAreaProps) => {
     loadThread();
 
     // Subscribe to real-time message updates
-    const channel = supabase.channel('thread-messages')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'thread_messages',
-          filter: `thread_id=eq.${threadId}`
-        },
-        (payload) => {
-          const newMessage = payload.new;
-          setMessages(prev => [...prev, {
-            id: prev.length + 1,
-            content: newMessage.content,
-            sender: newMessage.sender,
-            timestamp: new Date(newMessage.timestamp),
-            agentId: chatTarget.type === 'agent' ? Number(chatTarget.id) : undefined,
-          }]);
-        }
-      )
-      .subscribe();
+    let channel: any;
+    if (threadId) {
+      channel = supabase.channel(`thread-${threadId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'thread_messages',
+            filter: `thread_id=eq.${threadId}`
+          },
+          (payload) => {
+            const newMessage = payload.new;
+            // Only add the message if it's not already in the messages array
+            setMessages(prev => {
+              const messageExists = prev.some(msg => 
+                msg.content === newMessage.content && 
+                msg.sender === newMessage.sender &&
+                Math.abs(new Date(msg.timestamp).getTime() - new Date(newMessage.timestamp).getTime()) < 1000
+              );
+              if (!messageExists) {
+                return [...prev, {
+                  id: prev.length + 1,
+                  content: newMessage.content,
+                  sender: newMessage.sender,
+                  timestamp: new Date(newMessage.timestamp),
+                  agentId: chatTarget.type === 'agent' ? Number(chatTarget.id) : undefined,
+                }];
+              }
+              return prev;
+            });
+          }
+        )
+        .subscribe();
+    }
 
     return () => {
-      supabase.removeChannel(channel);
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
     };
   }, [chatTarget, threadId, toast]);
 
@@ -180,13 +200,7 @@ export const ChatArea = ({ chatTarget }: ChatAreaProps) => {
         if (responseError) throw responseError;
       }
 
-      setMessages(prev => [...prev, {
-        id: prev.length + 1,
-        content: response,
-        sender: agentName,
-        timestamp: new Date(),
-        agentId: chatTarget.type === "agent" ? Number(chatTarget.id) : undefined,
-      }]);
+      // Don't add the agent's message here as it will come through the subscription
     } catch (error) {
       console.error('Error sending message:', error);
       toast({
