@@ -1,23 +1,37 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { toast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
-// Initialize with empty key, will be set after fetching from environment
 let GEMINI_API_KEY: string | null = null;
 
-// Function to fetch API key from environment
 const fetchApiKey = async () => {
   try {
     console.log('Fetching Gemini API key from environment...');
     
-    // For development, we'll use the key from the window object
-    // This is populated by Supabase's secret management system
+    // First try window.env (for development)
     if (typeof window !== 'undefined' && (window as any).env?.GEMINI_API_KEY) {
       GEMINI_API_KEY = (window as any).env.GEMINI_API_KEY;
       console.log('Successfully fetched Gemini API key from environment');
       return true;
     }
-    
-    console.error('No API key found in environment');
+
+    // If not found in window.env, try fetching from Edge Function
+    const { data, error } = await supabase.functions.invoke('get-secret', {
+      body: { secretName: 'GEMINI_API_KEY' },
+    });
+
+    if (error) {
+      console.error('Error fetching secret:', error);
+      throw error;
+    }
+
+    if (data?.secret) {
+      GEMINI_API_KEY = data.secret;
+      console.log('Successfully fetched Gemini API key from Edge Function');
+      return true;
+    }
+
+    console.error('No API key found in environment or Edge Function');
     throw new Error('API key not found');
   } catch (error) {
     console.error('Error fetching Gemini API key:', error);
@@ -69,7 +83,6 @@ export const generateAgentResponse = async (
   userMessage: string,
   chatHistory: Array<{ sender: string; content: string }>
 ) => {
-  // Ensure we have the API key
   if (!GEMINI_API_KEY) {
     console.log('No API key found, attempting to fetch...');
     const success = await fetchApiKey();
