@@ -3,13 +3,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useWorkflows } from "@/hooks/useWorkflows";
 import { Loader2 } from "lucide-react";
+import { WorkflowStages } from "@/components/workflows/WorkflowStages";
 
 interface WorkflowDashboardProps {
   projectId: string;
 }
 
 export const WorkflowDashboard = ({ projectId }: WorkflowDashboardProps) => {
-  const { workflows, isLoading } = useWorkflows(projectId);
+  const { workflows, isLoading, refetch } = useWorkflows(projectId);
 
   if (isLoading) {
     return (
@@ -28,22 +29,13 @@ export const WorkflowDashboard = ({ projectId }: WorkflowDashboardProps) => {
               <CardTitle className="text-sm font-medium">
                 {workflow.name}
               </CardTitle>
-              <Badge
-                variant={
-                  workflow.status === "completed"
-                    ? "default"
-                    : workflow.status === "in-progress"
-                    ? "secondary"
-                    : "outline"
-                }
-              >
-                {workflow.status}
-              </Badge>
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground">
                 {workflow.description}
               </p>
+              
+              <WorkflowStages workflow={workflow} onUpdate={refetch} />
               
               {workflow.assignments.length > 0 && (
                 <div className="mt-4">
