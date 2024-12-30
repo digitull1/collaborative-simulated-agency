@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { Database } from '@/integrations/supabase/types';
 
 interface ProjectDetails {
   project_name: string;
@@ -20,6 +21,8 @@ export interface ContextMemory {
   project_details: ProjectDetails;
   conversation_history: ConversationEntry[];
 }
+
+type ContextMemoryRow = Database['public']['Tables']['context_memory']['Row'];
 
 export const useContextMemory = (threadId: string | null) => {
   const [contextMemory, setContextMemory] = useState<ContextMemory | null>(null);
@@ -40,32 +43,54 @@ export const useContextMemory = (threadId: string | null) => {
         if (error) throw error;
 
         if (data) {
-          // Ensure the data matches our expected types
-          const projectDetails = data.project_details as ProjectDetails;
-          const conversationHistory = data.conversation_history as ConversationEntry[];
-          
-          setContextMemory({
-            project_details: projectDetails,
-            conversation_history: conversationHistory
-          });
+          // Type assertion with validation
+          const projectDetails = data.project_details as unknown;
+          const conversationHistory = data.conversation_history as unknown;
+
+          // Validate project details structure
+          if (
+            typeof projectDetails === 'object' && 
+            projectDetails !== null &&
+            'project_name' in projectDetails &&
+            'goals' in projectDetails &&
+            'milestones' in projectDetails &&
+            'active_agents' in projectDetails
+          ) {
+            const typedProjectDetails = projectDetails as ProjectDetails;
+            const typedConversationHistory = Array.isArray(conversationHistory) 
+              ? conversationHistory as ConversationEntry[]
+              : [];
+
+            setContextMemory({
+              project_details: typedProjectDetails,
+              conversation_history: typedConversationHistory
+            });
+          }
         } else {
-          // Initialize new context memory with proper types
+          // Initialize new context memory with default values
+          const defaultProjectDetails: ProjectDetails = {
+            project_name: 'AIGency Project',
+            goals: 'Enhance marketing strategies with AI',
+            milestones: [],
+            active_agents: []
+          };
+
           const { error: insertError } = await supabase
             .from('context_memory')
-            .insert([{
+            .insert({
               thread_id: threadId,
               user_id: user.id,
               agent_name: 'System',
-              project_details: {
-                project_name: 'AIGency Project',
-                goals: 'Enhance marketing strategies with AI',
-                milestones: [],
-                active_agents: []
-              } as ProjectDetails,
-              conversation_history: [] as ConversationEntry[]
-            }]);
+              project_details: defaultProjectDetails,
+              conversation_history: []
+            } satisfies Partial<ContextMemoryRow>);
 
           if (insertError) throw insertError;
+
+          setContextMemory({
+            project_details: defaultProjectDetails,
+            conversation_history: []
+          });
         }
       } catch (error) {
         console.error('Error loading context memory:', error);
@@ -92,11 +117,25 @@ export const useContextMemory = (threadId: string | null) => {
         },
         (payload) => {
           if (payload.new) {
-            const newData = payload.new;
-            setContextMemory({
-              project_details: newData.project_details as ProjectDetails,
-              conversation_history: newData.conversation_history as ConversationEntry[]
-            });
+            const newData = payload.new as ContextMemoryRow;
+            const projectDetails = newData.project_details as unknown;
+            const conversationHistory = newData.conversation_history as unknown;
+
+            if (
+              typeof projectDetails === 'object' && 
+              projectDetails !== null &&
+              'project_name' in projectDetails &&
+              'goals' in projectDetails &&
+              'milestones' in projectDetails &&
+              'active_agents' in projectDetails
+            ) {
+              setContextMemory({
+                project_details: projectDetails as ProjectDetails,
+                conversation_history: Array.isArray(conversationHistory) 
+                  ? conversationHistory as ConversationEntry[]
+                  : []
+              });
+            }
           }
         }
       )
