@@ -89,7 +89,6 @@ export const AgentList = ({ onSelectAgent, activeAgentId }: AgentListProps) => {
         throw new Error("User must be logged in");
       }
 
-      // Check for existing thread
       const { data: existingThread, error: fetchError } = await supabase
         .from('threads')
         .select('*')
@@ -100,7 +99,6 @@ export const AgentList = ({ onSelectAgent, activeAgentId }: AgentListProps) => {
       if (fetchError) throw fetchError;
 
       if (!existingThread) {
-        // Create new thread with proper participants array
         const { data: newThread, error: createError } = await supabase
           .from('threads')
           .insert([
@@ -152,9 +150,10 @@ export const AgentList = ({ onSelectAgent, activeAgentId }: AgentListProps) => {
             <h3 className="font-medium text-sm">{agent.name}</h3>
             <p className="text-xs text-muted-foreground">{agent.role}</p>
             {typingAgents.has(agent.id) && (
-              <p className="text-xs text-muted-foreground animate-pulse">
-                typing...
-              </p>
+              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                <span className="animate-pulse">●</span>
+                <span>typing...</span>
+              </div>
             )}
           </div>
         </button>
