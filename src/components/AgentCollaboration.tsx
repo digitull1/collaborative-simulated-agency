@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { MessageSquarePlus, AlertCircle } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
+import type { CollaborationLog, CollaborationRequest } from "@/types/collaboration";
 
 interface AgentCollaborationProps {
   projectId: string;
@@ -16,22 +17,18 @@ interface AgentCollaborationProps {
 
 export const AgentCollaboration = ({ projectId, currentAgent }: AgentCollaborationProps) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [request, setRequest] = useState({
+  const [request, setRequest] = useState<CollaborationRequest>({
     target_agent: "",
     message: "",
   });
-  const [collaborationLogs, setCollaborationLogs] = useState<Array<{
-    id: string;
-    requesting_agent: string;
-    target_agent: string;
-    message: string;
-    status: string;
-    created_at: string;
-  }>>([]);
+  const [collaborationLogs, setCollaborationLogs] = useState<CollaborationLog[]>([]);
   const { toast } = useToast();
 
   useEffect(() => {
     const loadCollaborationLogs = async () => {
+      // Only fetch if we have a valid projectId
+      if (!projectId) return;
+      
       try {
         const { data, error } = await supabase
           .from('agent_collaboration_logs')
@@ -61,7 +58,8 @@ export const AgentCollaboration = ({ projectId, currentAgent }: AgentCollaborati
         },
         (payload) => {
           if (payload.eventType === 'INSERT') {
-            setCollaborationLogs(prev => [payload.new, ...prev]);
+            const newLog = payload.new as CollaborationLog;
+            setCollaborationLogs(prev => [newLog, ...prev]);
           }
         }
       )
@@ -73,6 +71,15 @@ export const AgentCollaboration = ({ projectId, currentAgent }: AgentCollaborati
   }, [projectId]);
 
   const sendCollaborationRequest = async () => {
+    if (!projectId) {
+      toast({
+        title: "Error",
+        description: "Project ID is required to send a collaboration request.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       const { error } = await supabase
         .from("agent_collaboration_logs")

@@ -1,25 +1,20 @@
-import { Bell, Check, Filter } from "lucide-react";
+import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
+import { NotificationFilters } from "./notifications/NotificationFilters";
+import { NotificationItem } from "./notifications/NotificationItem";
+import type { Notification } from "@/types/notification";
 
 export const NotificationPanel = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const [filter, setFilter] = useState<"all" | "campaign" | "insight">("all");
   const [unreadOnly, setUnreadOnly] = useState(false);
-  const [notifications, setNotifications] = useState<Array<{
-    id: string;
-    type: string;
-    sender: string;
-    content: string;
-    thread_id: string | null;
-    timestamp: string;
-    read: boolean;
-  }>>([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
 
   useEffect(() => {
     const loadNotifications = async () => {
@@ -43,7 +38,6 @@ export const NotificationPanel = () => {
 
     loadNotifications();
 
-    // Subscribe to real-time notifications
     const channel = supabase
       .channel('notifications')
       .on(
@@ -54,7 +48,8 @@ export const NotificationPanel = () => {
           table: 'notifications'
         },
         (payload) => {
-          setNotifications(prev => [payload.new, ...prev]);
+          const newNotification = payload.new as Notification;
+          setNotifications(prev => [newNotification, ...prev]);
         }
       )
       .subscribe();
@@ -91,9 +86,8 @@ export const NotificationPanel = () => {
     }
   };
 
-  const handleNotificationClick = async (notification: typeof notifications[0]) => {
+  const handleNotificationClick = async (notification: Notification) => {
     try {
-      // Mark as read
       const { error } = await supabase
         .from('notifications')
         .update({ read: true })
@@ -107,7 +101,6 @@ export const NotificationPanel = () => {
         )
       );
 
-      // Navigate to the relevant thread if thread_id exists
       if (notification.thread_id) {
         navigate(`/thread/${notification.thread_id}`);
       }
@@ -129,33 +122,7 @@ export const NotificationPanel = () => {
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between px-2 mb-2">
-        <div className="flex gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            className={filter === "all" ? "bg-sidebar-accent" : ""}
-            onClick={() => setFilter("all")}
-          >
-            All
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className={filter === "campaign" ? "bg-sidebar-accent" : ""}
-            onClick={() => setFilter("campaign")}
-          >
-            Campaign
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className={filter === "insight" ? "bg-sidebar-accent" : ""}
-            onClick={() => setFilter("insight")}
-          >
-            Insights
-          </Button>
-        </div>
+      <div className="flex justify-end px-2">
         <Button
           variant="ghost"
           size="sm"
@@ -165,39 +132,21 @@ export const NotificationPanel = () => {
         </Button>
       </div>
 
-      <Button
-        variant="ghost"
-        size="sm"
-        className="w-full justify-start"
-        onClick={() => setUnreadOnly(!unreadOnly)}
-      >
-        <Filter className="w-4 h-4 mr-2" />
-        {unreadOnly ? "Show All" : "Show Unread Only"}
-      </Button>
+      <NotificationFilters
+        filter={filter}
+        setFilter={setFilter}
+        unreadOnly={unreadOnly}
+        setUnreadOnly={setUnreadOnly}
+      />
 
       <ScrollArea className="h-[300px]">
         <div className="space-y-1">
           {filteredNotifications.map((notification) => (
-            <button
+            <NotificationItem
               key={notification.id}
-              onClick={() => handleNotificationClick(notification)}
-              className="flex items-start w-full p-2 text-sm rounded-md hover:bg-sidebar-accent group"
-            >
-              <Bell className="w-4 h-4 mt-0.5 mr-2 shrink-0" />
-              <div className="flex-1 text-left">
-                <div className="font-medium flex items-center justify-between">
-                  <span>{notification.type}</span>
-                  {!notification.read && (
-                    <div className="w-2 h-2 rounded-full bg-primary" />
-                  )}
-                </div>
-                <p className="text-xs text-muted-foreground">{notification.content}</p>
-                <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span>{notification.sender}</span>
-                  <span>{new Date(notification.timestamp).toLocaleString()}</span>
-                </div>
-              </div>
-            </button>
+              notification={notification}
+              onClick={handleNotificationClick}
+            />
           ))}
         </div>
       </ScrollArea>
