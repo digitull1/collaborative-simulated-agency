@@ -26,5 +26,7 @@ export interface TaskFromDB {
 
 export const convertTaskFromDB = (task: TaskFromDB): Task => ({
   ...task,
-  dependencies: Array.isArray(task.dependencies) ? task.dependencies : [],
+  dependencies: Array.isArray(task.dependencies) 
+    ? task.dependencies.map(dep => String(dep)) // Convert each dependency to string
+    : []
 });
