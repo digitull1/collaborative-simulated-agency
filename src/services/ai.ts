@@ -8,13 +8,23 @@ let GEMINI_API_KEY = '';
 // Function to fetch API key from Supabase
 const fetchApiKey = async () => {
   try {
+    console.log('Fetching Gemini API key from Supabase...');
+    
     const { data, error } = await supabase.functions.invoke('get-secret', {
       body: { secretName: 'GEMINI_API_KEY' }
     });
     
-    if (error) throw error;
-    if (!data?.secret) throw new Error('API key not found');
+    if (error) {
+      console.error('Supabase function error:', error);
+      throw error;
+    }
     
+    if (!data?.secret) {
+      console.error('No secret returned from Supabase');
+      throw new Error('API key not found in Supabase secrets');
+    }
+    
+    console.log('Successfully fetched Gemini API key');
     GEMINI_API_KEY = data.secret;
     return true;
   } catch (error) {
@@ -69,6 +79,7 @@ export const generateAgentResponse = async (
 ) => {
   // Ensure we have the API key
   if (!GEMINI_API_KEY) {
+    console.log('No API key found, attempting to fetch...');
     const success = await fetchApiKey();
     if (!success) {
       throw new Error("Failed to initialize Gemini API. Please check your configuration.");
