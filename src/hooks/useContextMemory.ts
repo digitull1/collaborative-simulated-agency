@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { Database } from '@/integrations/supabase/types';
+import { Database, Json } from '@/integrations/supabase/types';
 
 interface ProjectDetails {
   project_name: string;
@@ -75,14 +75,18 @@ export const useContextMemory = (threadId: string | null) => {
             active_agents: []
           };
 
+          // Convert ProjectDetails to Json type for Supabase
+          const projectDetailsJson: Json = defaultProjectDetails as unknown as Json;
+          const conversationHistoryJson: Json = [] as unknown as Json;
+
           const { error: insertError } = await supabase
             .from('context_memory')
             .insert({
               thread_id: threadId,
               user_id: user.id,
               agent_name: 'System',
-              project_details: defaultProjectDetails,
-              conversation_history: []
+              project_details: projectDetailsJson,
+              conversation_history: conversationHistoryJson
             } satisfies Partial<ContextMemoryRow>);
 
           if (insertError) throw insertError;
