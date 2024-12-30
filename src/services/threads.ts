@@ -1,21 +1,9 @@
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import type { Database } from "@/integrations/supabase/types";
 
-export interface Thread {
-  id: string;
-  title: string;
-  last_message?: string;
-  last_message_at?: string;
-  participants: string[];
-}
-
-export interface ThreadMessage {
-  id: string;
-  thread_id: string;
-  sender: string;
-  content: string;
-  timestamp: string;
-}
+export type Thread = Database["public"]["Tables"]["threads"]["Row"];
+export type ThreadMessage = Database["public"]["Tables"]["thread_messages"]["Row"];
 
 class ThreadManager {
   public async createThread(title: string, participants: string[]): Promise<string> {

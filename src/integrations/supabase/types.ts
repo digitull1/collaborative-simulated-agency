@@ -344,6 +344,44 @@ export type Database = {
         }
         Relationships: []
       }
+      notifications: {
+        Row: {
+          content: string
+          id: string
+          read: boolean | null
+          sender: string
+          thread_id: string | null
+          timestamp: string
+          type: string
+        }
+        Insert: {
+          content: string
+          id?: string
+          read?: boolean | null
+          sender: string
+          thread_id?: string | null
+          timestamp?: string
+          type: string
+        }
+        Update: {
+          content?: string
+          id?: string
+          read?: boolean | null
+          sender?: string
+          thread_id?: string | null
+          timestamp?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       onboarding_state: {
         Row: {
           communication_preferences: Json | null
@@ -476,6 +514,65 @@ export type Database = {
           pattern_value?: Json
           updated_at?: string | null
           user_id?: string
+        }
+        Relationships: []
+      }
+      thread_messages: {
+        Row: {
+          content: string
+          id: string
+          sender: string
+          thread_id: string | null
+          timestamp: string
+        }
+        Insert: {
+          content: string
+          id?: string
+          sender: string
+          thread_id?: string | null
+          timestamp?: string
+        }
+        Update: {
+          content?: string
+          id?: string
+          sender?: string
+          thread_id?: string | null
+          timestamp?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "thread_messages_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      threads: {
+        Row: {
+          created_at: string
+          id: string
+          last_message: string | null
+          last_message_at: string | null
+          participants: string[]
+          title: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_message?: string | null
+          last_message_at?: string | null
+          participants: string[]
+          title: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_message?: string | null
+          last_message_at?: string | null
+          participants?: string[]
+          title?: string
         }
         Relationships: []
       }
