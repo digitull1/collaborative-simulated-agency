@@ -749,6 +749,147 @@ export type Database = {
         }
         Relationships: []
       }
+      workflow_assignments: {
+        Row: {
+          agent_name: string
+          created_at: string | null
+          id: string
+          role: string | null
+          workflow_id: string | null
+        }
+        Insert: {
+          agent_name: string
+          created_at?: string | null
+          id?: string
+          role?: string | null
+          workflow_id?: string | null
+        }
+        Update: {
+          agent_name?: string
+          created_at?: string | null
+          id?: string
+          role?: string | null
+          workflow_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workflow_assignments_workflow_id_fkey"
+            columns: ["workflow_id"]
+            isOneToOne: false
+            referencedRelation: "workflows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workflow_dependencies: {
+        Row: {
+          created_at: string | null
+          dependent_workflow_id: string | null
+          id: string
+          workflow_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          dependent_workflow_id?: string | null
+          id?: string
+          workflow_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          dependent_workflow_id?: string | null
+          id?: string
+          workflow_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workflow_dependencies_dependent_workflow_id_fkey"
+            columns: ["dependent_workflow_id"]
+            isOneToOne: false
+            referencedRelation: "workflows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workflow_dependencies_workflow_id_fkey"
+            columns: ["workflow_id"]
+            isOneToOne: false
+            referencedRelation: "workflows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workflow_updates: {
+        Row: {
+          agent_name: string
+          content: string
+          created_at: string | null
+          id: string
+          update_type: string
+          workflow_id: string | null
+        }
+        Insert: {
+          agent_name: string
+          content: string
+          created_at?: string | null
+          id?: string
+          update_type: string
+          workflow_id?: string | null
+        }
+        Update: {
+          agent_name?: string
+          content?: string
+          created_at?: string | null
+          id?: string
+          update_type?: string
+          workflow_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workflow_updates_workflow_id_fkey"
+            columns: ["workflow_id"]
+            isOneToOne: false
+            referencedRelation: "workflows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workflows: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          id: string
+          name: string
+          project_id: string | null
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          name: string
+          project_id?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          name?: string
+          project_id?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workflows_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

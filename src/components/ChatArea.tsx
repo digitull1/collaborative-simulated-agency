@@ -6,7 +6,9 @@ import type { ChatTarget } from "@/components/SlackLayout";
 import { Messages } from "@/components/Messages";
 import { MessageInput } from "@/components/MessageInput";
 import { ContextDrawer } from "@/components/ContextDrawer";
+import { WorkflowDashboard } from "@/components/WorkflowDashboard";
 import { useContextMemory } from "@/hooks/useContextMemory";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface ChatAreaProps {
   chatTarget: ChatTarget;
@@ -216,19 +218,32 @@ export const ChatArea = ({ chatTarget }: ChatAreaProps) => {
       
       {contextMemory && <ContextDrawer contextMemory={contextMemory} />}
       
-      <Messages 
-        messages={messages}
-        isLoading={isLoading}
-        chatTargetName={chatTarget.name}
-      />
-      
-      <MessageInput
-        newMessage={newMessage}
-        setNewMessage={setNewMessage}
-        handleSendMessage={handleSendMessage}
-        isLoading={isLoading}
-        placeholder={`Message ${chatTarget.type === "channel" ? `#${chatTarget.name}` : chatTarget.name}...`}
-      />
+      <Tabs defaultValue="chat" className="flex-1">
+        <TabsList className="mx-4 mt-2">
+          <TabsTrigger value="chat">Chat</TabsTrigger>
+          <TabsTrigger value="workflows">Workflows</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="chat" className="flex-1 flex flex-col">
+          <Messages 
+            messages={messages}
+            isLoading={isLoading}
+            chatTargetName={chatTarget.name}
+          />
+          
+          <MessageInput
+            newMessage={newMessage}
+            setNewMessage={setNewMessage}
+            handleSendMessage={handleSendMessage}
+            isLoading={isLoading}
+            placeholder={`Message ${chatTarget.type === "channel" ? `#${chatTarget.name}` : chatTarget.name}...`}
+          />
+        </TabsContent>
+        
+        <TabsContent value="workflows" className="flex-1">
+          {threadId && <WorkflowDashboard projectId={threadId} />}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
