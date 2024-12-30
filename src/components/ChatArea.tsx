@@ -35,11 +35,9 @@ export const ChatArea = ({ chatTarget }: ChatAreaProps) => {
           .select('*')
           .eq('type', chatTarget.type)
           .eq('title', chatTarget.name)
-          .single();
+          .maybeSingle();
 
-        if (fetchError && fetchError.code !== 'PGRST116') {
-          throw fetchError;
-        }
+        if (fetchError) throw fetchError;
 
         if (existingThread) {
           setThreadId(existingThread.id);
