@@ -29,6 +29,11 @@ export const ChatArea = ({ chatTarget }: ChatAreaProps) => {
   useEffect(() => {
     const loadThread = async () => {
       try {
+        const user = await supabase.auth.getUser();
+        if (!user.data.user) {
+          throw new Error("User must be logged in");
+        }
+
         // Find or create thread for this chat target
         const { data: existingThread, error: fetchError } = await supabase
           .from('threads')
@@ -58,13 +63,13 @@ export const ChatArea = ({ chatTarget }: ChatAreaProps) => {
             agentId: chatTarget.type === 'agent' ? Number(chatTarget.id) : undefined,
           })));
         } else {
-          // Create new thread
+          // Create new thread with proper participants array
           const { data: newThread, error: createError } = await supabase
             .from('threads')
             .insert([{
               type: chatTarget.type,
               title: chatTarget.name,
-              participants: ['user', chatTarget.name],
+              participants: [user.data.user.id, chatTarget.name],
               last_message: null,
               last_message_at: null
             }])

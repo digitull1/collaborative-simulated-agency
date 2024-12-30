@@ -83,27 +83,30 @@ export const AgentList = ({ onSelectAgent, activeAgentId }: AgentListProps) => {
 
   const handleAgentClick = async (agent: typeof agents[0]) => {
     try {
+      const user = supabase.auth.getUser();
+      if (!user) {
+        throw new Error("User must be logged in");
+      }
+
       // Check for existing thread
       const { data: existingThread, error: fetchError } = await supabase
         .from('threads')
         .select('*')
         .eq('type', 'agent')
         .eq('title', agent.name)
-        .single();
+        .maybeSingle();
 
-      if (fetchError && fetchError.code !== 'PGRST116') {
-        throw fetchError;
-      }
+      if (fetchError) throw fetchError;
 
       if (!existingThread) {
-        // Create new thread
+        // Create new thread with proper participants array
         const { data: newThread, error: createError } = await supabase
           .from('threads')
           .insert([
             {
               type: 'agent',
               title: agent.name,
-              participants: ['user', agent.name],
+              participants: [(await user).data.user?.id, agent.name],
               last_message: null,
               last_message_at: null
             }
