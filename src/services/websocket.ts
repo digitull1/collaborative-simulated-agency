@@ -7,11 +7,15 @@ export type WebSocketMessage = {
   content: string;
   thread_id?: string;
   timestamp: string;
+  typing?: boolean;
 };
 
 class WebSocketManager {
   private channel: any;
   private messageHandlers: ((message: WebSocketMessage) => void)[] = [];
+  private typingHandlers: ((data: { sender: string; thread_id: string }) => void)[] = [];
+  private reconnectAttempts = 0;
+  private maxReconnectAttempts = 5;
 
   constructor() {
     this.initializeChannel();
@@ -22,26 +26,49 @@ class WebSocketManager {
       .on('broadcast', { event: 'message' }, ({ payload }) => {
         this.messageHandlers.forEach(handler => handler(payload));
       })
+      .on('broadcast', { event: 'typing' }, ({ payload }) => {
+        this.typingHandlers.forEach(handler => handler(payload));
+      })
       .subscribe((status: string) => {
         if (status === 'SUBSCRIBED') {
           console.log('Connected to chat channel');
+          this.reconnectAttempts = 0;
         } else if (status === 'CLOSED') {
           console.log('Disconnected from chat channel');
-          toast({
-            title: "Connection Lost",
-            description: "Attempting to reconnect...",
-            variant: "destructive",
-          });
-          // Attempt to reconnect after a delay
-          setTimeout(() => this.initializeChannel(), 5000);
+          this.handleDisconnect();
         }
       });
+  }
+
+  private handleDisconnect() {
+    if (this.reconnectAttempts < this.maxReconnectAttempts) {
+      toast({
+        title: "Connection Lost",
+        description: "Attempting to reconnect...",
+        variant: "destructive",
+      });
+      this.reconnectAttempts++;
+      setTimeout(() => this.initializeChannel(), 5000 * this.reconnectAttempts);
+    } else {
+      toast({
+        title: "Connection Failed",
+        description: "Please refresh the page to reconnect.",
+        variant: "destructive",
+      });
+    }
   }
 
   public onMessage(handler: (message: WebSocketMessage) => void) {
     this.messageHandlers.push(handler);
     return () => {
       this.messageHandlers = this.messageHandlers.filter(h => h !== handler);
+    };
+  }
+
+  public onTyping(handler: (data: { sender: string; thread_id: string }) => void) {
+    this.typingHandlers.push(handler);
+    return () => {
+      this.typingHandlers = this.typingHandlers.filter(h => h !== handler);
     };
   }
 
@@ -69,9 +96,8 @@ class WebSocketManager {
     try {
       await this.channel.send({
         type: 'broadcast',
-        event: 'message',
+        event: 'typing',
         payload: {
-          type: 'typing',
           sender,
           thread_id,
           timestamp: new Date().toISOString()

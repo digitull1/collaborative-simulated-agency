@@ -6,9 +6,24 @@ export type Notification = Database["public"]["Tables"]["notifications"]["Row"];
 
 class NotificationManager {
   private listeners: ((notification: Notification) => void)[] = [];
+  private unreadCount = 0;
 
   constructor() {
     this.initializeRealtime();
+    this.loadUnreadCount();
+  }
+
+  private async loadUnreadCount() {
+    try {
+      const { count } = await supabase
+        .from('notifications')
+        .select('*', { count: 'exact', head: true })
+        .eq('read', false);
+      
+      this.unreadCount = count || 0;
+    } catch (error) {
+      console.error('Error loading unread count:', error);
+    }
   }
 
   private initializeRealtime() {
@@ -23,6 +38,9 @@ class NotificationManager {
         },
         (payload) => {
           this.notifyListeners(payload.new as Notification);
+          if (!(payload.new as Notification).read) {
+            this.unreadCount++;
+          }
         }
       )
       .subscribe();
@@ -37,6 +55,10 @@ class NotificationManager {
 
   private notifyListeners(notification: Notification) {
     this.listeners.forEach(listener => listener(notification));
+  }
+
+  public getUnreadCount(): number {
+    return this.unreadCount;
   }
 
   public async getUnreadNotifications(): Promise<Notification[]> {
@@ -68,6 +90,7 @@ class NotificationManager {
         .eq('id', notificationId);
 
       if (error) throw error;
+      this.unreadCount = Math.max(0, this.unreadCount - 1);
     } catch (error) {
       console.error('Error marking notification as read:', error);
       toast({
@@ -86,6 +109,7 @@ class NotificationManager {
         .eq('read', false);
 
       if (error) throw error;
+      this.unreadCount = 0;
     } catch (error) {
       console.error('Error marking all notifications as read:', error);
       toast({
