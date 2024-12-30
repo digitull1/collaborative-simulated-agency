@@ -4,27 +4,24 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
-
-type Notification = {
-  id: string;
-  type: string;
-  content: string;
-  sender: string;
-  timestamp: string;
-  read: boolean;
-};
+import { useNavigate } from "react-router-dom";
 
 export const NotificationPanel = () => {
   const { toast } = useToast();
-  const { user } = useAuth();
+  const navigate = useNavigate();
   const [filter, setFilter] = useState<"all" | "campaign" | "insight">("all");
   const [unreadOnly, setUnreadOnly] = useState(false);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [notifications, setNotifications] = useState<Array<{
+    id: string;
+    type: string;
+    sender: string;
+    content: string;
+    thread_id: string | null;
+    timestamp: string;
+    read: boolean;
+  }>>([]);
 
   useEffect(() => {
-    if (!user) return;
-
     const loadNotifications = async () => {
       try {
         const { data, error } = await supabase
@@ -33,7 +30,6 @@ export const NotificationPanel = () => {
           .order('timestamp', { ascending: false });
 
         if (error) throw error;
-        
         setNotifications(data);
       } catch (error) {
         console.error('Error loading notifications:', error);
@@ -58,7 +54,7 @@ export const NotificationPanel = () => {
           table: 'notifications'
         },
         (payload) => {
-          setNotifications(prev => [payload.new as Notification, ...prev]);
+          setNotifications(prev => [payload.new, ...prev]);
         }
       )
       .subscribe();
@@ -66,7 +62,7 @@ export const NotificationPanel = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, toast]);
+  }, [toast]);
 
   const markAllAsRead = async () => {
     try {
@@ -90,6 +86,36 @@ export const NotificationPanel = () => {
       toast({
         title: "Error",
         description: "Failed to update notifications",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleNotificationClick = async (notification: typeof notifications[0]) => {
+    try {
+      // Mark as read
+      const { error } = await supabase
+        .from('notifications')
+        .update({ read: true })
+        .eq('id', notification.id);
+
+      if (error) throw error;
+
+      setNotifications(prev =>
+        prev.map(n =>
+          n.id === notification.id ? { ...n, read: true } : n
+        )
+      );
+
+      // Navigate to the relevant thread if thread_id exists
+      if (notification.thread_id) {
+        navigate(`/thread/${notification.thread_id}`);
+      }
+    } catch (error) {
+      console.error('Error handling notification:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update notification",
         variant: "destructive",
       });
     }
@@ -154,6 +180,7 @@ export const NotificationPanel = () => {
           {filteredNotifications.map((notification) => (
             <button
               key={notification.id}
+              onClick={() => handleNotificationClick(notification)}
               className="flex items-start w-full p-2 text-sm rounded-md hover:bg-sidebar-accent group"
             >
               <Bell className="w-4 h-4 mt-0.5 mr-2 shrink-0" />
