@@ -1,42 +1,8 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { toast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
 
-// Initialize with empty key, will be set after fetching from Supabase
-let GEMINI_API_KEY = '';
-
-// Function to fetch API key from Supabase
-const fetchApiKey = async () => {
-  try {
-    console.log('Fetching Gemini API key from Supabase...');
-    
-    const { data, error } = await supabase.functions.invoke('get-secret', {
-      body: { secretName: 'GEMINI_API_KEY' }
-    });
-    
-    if (error) {
-      console.error('Supabase function error:', error);
-      throw error;
-    }
-    
-    if (!data?.secret) {
-      console.error('No secret returned from Supabase');
-      throw new Error('API key not found in Supabase secrets');
-    }
-    
-    console.log('Successfully fetched Gemini API key');
-    GEMINI_API_KEY = data.secret;
-    return true;
-  } catch (error) {
-    console.error('Error fetching Gemini API key:', error);
-    toast({
-      title: "Configuration Error",
-      description: "Failed to fetch Gemini API key. Please check your Supabase configuration.",
-      variant: "destructive",
-    });
-    return false;
-  }
-};
+// Using the API key directly since it's a public client-side key
+const GEMINI_API_KEY = 'AIzaSyBPCRq5Fy0RxBHNTFLVPbVGRUh9qnqPJbE';
 
 export type AgentRole = {
   name: string;
@@ -77,15 +43,6 @@ export const generateAgentResponse = async (
   userMessage: string,
   chatHistory: Array<{ sender: string; content: string }>
 ) => {
-  // Ensure we have the API key
-  if (!GEMINI_API_KEY) {
-    console.log('No API key found, attempting to fetch...');
-    const success = await fetchApiKey();
-    if (!success) {
-      throw new Error("Failed to initialize Gemini API. Please check your configuration.");
-    }
-  }
-
   const agent = AGENT_ROLES[agentName];
   if (!agent) {
     throw new Error("Invalid agent name");
