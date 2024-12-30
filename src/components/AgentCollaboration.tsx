@@ -124,7 +124,7 @@ export const AgentCollaboration = ({ projectId, currentAgent }: AgentCollaborati
   };
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col space-y-4">
       <div className="flex items-center justify-between">
         <CollaborationRequestForm onSubmit={handleCollaborationRequest} />
         <CollaborationHistory logs={collaborationLogs} />
