@@ -6,19 +6,21 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
+type Notification = {
+  id: string;
+  type: string;
+  content: string;
+  sender: string;
+  timestamp: string;
+  read: boolean;
+};
+
 export const NotificationPanel = () => {
   const { toast } = useToast();
   const { user } = useAuth();
   const [filter, setFilter] = useState<"all" | "campaign" | "insight">("all");
   const [unreadOnly, setUnreadOnly] = useState(false);
-  const [notifications, setNotifications] = useState<Array<{
-    id: string;
-    type: string;
-    content: string;
-    sender: string;
-    timestamp: string;
-    read: boolean;
-  }>>([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
 
   useEffect(() => {
     if (!user) return;
@@ -31,7 +33,18 @@ export const NotificationPanel = () => {
           .order('timestamp', { ascending: false });
 
         if (error) throw error;
-        setNotifications(data);
+        
+        // Ensure data matches our Notification type
+        const typedNotifications: Notification[] = data.map(item => ({
+          id: item.id,
+          type: item.type,
+          content: item.content,
+          sender: item.sender,
+          timestamp: item.timestamp,
+          read: item.read || false
+        }));
+        
+        setNotifications(typedNotifications);
       } catch (error) {
         console.error('Error loading notifications:', error);
         toast({
@@ -55,7 +68,15 @@ export const NotificationPanel = () => {
           table: 'notifications'
         },
         (payload) => {
-          setNotifications(prev => [payload.new, ...prev]);
+          const newNotification: Notification = {
+            id: payload.new.id,
+            type: payload.new.type,
+            content: payload.new.content,
+            sender: payload.new.sender,
+            timestamp: payload.new.timestamp,
+            read: payload.new.read || false
+          };
+          setNotifications(prev => [newNotification, ...prev]);
         }
       )
       .subscribe();
