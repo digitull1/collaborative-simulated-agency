@@ -83,8 +83,9 @@ export const AgentList = ({ onSelectAgent, activeAgentId }: AgentListProps) => {
 
   const handleAgentClick = async (agent: typeof agents[0]) => {
     try {
-      const user = supabase.auth.getUser();
-      if (!user) {
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      
+      if (authError || !user) {
         throw new Error("User must be logged in");
       }
 
@@ -106,7 +107,7 @@ export const AgentList = ({ onSelectAgent, activeAgentId }: AgentListProps) => {
             {
               type: 'agent',
               title: agent.name,
-              participants: [(await user).data.user?.id, agent.name],
+              participants: [user.id, agent.name],
               last_message: null,
               last_message_at: null
             }

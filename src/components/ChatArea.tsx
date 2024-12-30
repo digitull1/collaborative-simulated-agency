@@ -29,8 +29,9 @@ export const ChatArea = ({ chatTarget }: ChatAreaProps) => {
   useEffect(() => {
     const loadThread = async () => {
       try {
-        const user = await supabase.auth.getUser();
-        if (!user.data.user) {
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        
+        if (authError || !user) {
           throw new Error("User must be logged in");
         }
 
@@ -69,7 +70,7 @@ export const ChatArea = ({ chatTarget }: ChatAreaProps) => {
             .insert([{
               type: chatTarget.type,
               title: chatTarget.name,
-              participants: [user.data.user.id, chatTarget.name],
+              participants: [user.id, chatTarget.name],
               last_message: null,
               last_message_at: null
             }])
