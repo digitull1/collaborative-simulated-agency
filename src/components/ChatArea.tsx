@@ -60,6 +60,22 @@ export const ChatArea = ({ chatTarget }: ChatAreaProps) => {
             agentId: chatTarget.type === 'agent' ? Number(chatTarget.id) : undefined,
           })));
         } else {
+          // Create new thread
+          const { data: newThread, error: createError } = await supabase
+            .from('threads')
+            .insert([{
+              type: chatTarget.type,
+              title: chatTarget.name,
+              participants: ['user', chatTarget.name],
+              last_message: null,
+              last_message_at: null
+            }])
+            .select()
+            .single();
+
+          if (createError) throw createError;
+
+          setThreadId(newThread.id);
           // Initialize with welcome message
           setMessages([{
             id: 1,
