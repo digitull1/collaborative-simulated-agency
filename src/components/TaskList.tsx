@@ -3,23 +3,14 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Plus, CheckCircle2, Circle, Timer } from "lucide-react";
+import { Plus } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-
-interface Task {
-  id: string;
-  agent_name: string;
-  description: string;
-  status: string;
-  dependencies: string[];
-  created_by: string;
-  created_at: string;
-}
+import type { Task, TaskFromDB } from "@/types/task";
+import { convertTaskFromDB } from "@/types/task";
 
 interface TaskListProps {
   projectId: string;
@@ -49,7 +40,9 @@ export const TaskList = ({ projectId, currentAgent }: TaskListProps) => {
         return;
       }
 
-      setTasks(data || []);
+      // Convert the tasks from DB format to our Task interface
+      const convertedTasks = (data as TaskFromDB[]).map(convertTaskFromDB);
+      setTasks(convertedTasks);
     };
 
     fetchTasks();
