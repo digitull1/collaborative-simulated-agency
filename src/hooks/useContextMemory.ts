@@ -3,18 +3,22 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 
+interface ProjectDetails {
+  project_name: string;
+  goals: string;
+  milestones: string[];
+  active_agents: string[];
+}
+
+interface ConversationEntry {
+  agent_name: string;
+  timestamp: string;
+  message: string;
+}
+
 export interface ContextMemory {
-  project_details: {
-    project_name: string;
-    goals: string;
-    milestones: string[];
-    active_agents: string[];
-  };
-  conversation_history: Array<{
-    agent_name: string;
-    timestamp: string;
-    message: string;
-  }>;
+  project_details: ProjectDetails;
+  conversation_history: ConversationEntry[];
 }
 
 export const useContextMemory = (threadId: string | null) => {
@@ -31,17 +35,21 @@ export const useContextMemory = (threadId: string | null) => {
           .from('context_memory')
           .select('*')
           .eq('thread_id', threadId)
-          .single();
+          .maybeSingle();
 
         if (error) throw error;
 
         if (data) {
+          // Ensure the data matches our expected types
+          const projectDetails = data.project_details as ProjectDetails;
+          const conversationHistory = data.conversation_history as ConversationEntry[];
+          
           setContextMemory({
-            project_details: data.project_details,
-            conversation_history: data.conversation_history
+            project_details: projectDetails,
+            conversation_history: conversationHistory
           });
         } else {
-          // Initialize new context memory
+          // Initialize new context memory with proper types
           const { error: insertError } = await supabase
             .from('context_memory')
             .insert([{
@@ -53,8 +61,8 @@ export const useContextMemory = (threadId: string | null) => {
                 goals: 'Enhance marketing strategies with AI',
                 milestones: [],
                 active_agents: []
-              },
-              conversation_history: []
+              } as ProjectDetails,
+              conversation_history: [] as ConversationEntry[]
             }]);
 
           if (insertError) throw insertError;
@@ -84,9 +92,10 @@ export const useContextMemory = (threadId: string | null) => {
         },
         (payload) => {
           if (payload.new) {
+            const newData = payload.new;
             setContextMemory({
-              project_details: payload.new.project_details,
-              conversation_history: payload.new.conversation_history
+              project_details: newData.project_details as ProjectDetails,
+              conversation_history: newData.conversation_history as ConversationEntry[]
             });
           }
         }
