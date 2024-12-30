@@ -34,7 +34,7 @@ export const ChatArea = ({ chatTarget }: ChatAreaProps) => {
           .from('threads')
           .select('*')
           .eq('type', chatTarget.type)
-          .eq('name', chatTarget.name)
+          .eq('title', chatTarget.name)
           .single();
 
         if (fetchError && fetchError.code !== 'PGRST116') {

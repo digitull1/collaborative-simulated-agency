@@ -88,7 +88,7 @@ export const AgentList = ({ onSelectAgent, activeAgentId }: AgentListProps) => {
         .from('threads')
         .select('*')
         .eq('type', 'agent')
-        .eq('name', agent.name)
+        .eq('title', agent.name)
         .single();
 
       if (fetchError && fetchError.code !== 'PGRST116') {
@@ -102,9 +102,10 @@ export const AgentList = ({ onSelectAgent, activeAgentId }: AgentListProps) => {
           .insert([
             {
               type: 'agent',
-              name: agent.name,
+              title: agent.name,
               participants: ['user', agent.name],
-              title: `Chat with ${agent.name}`
+              last_message: null,
+              last_message_at: null
             }
           ])
           .select()
