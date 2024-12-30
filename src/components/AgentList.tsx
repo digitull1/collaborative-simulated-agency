@@ -2,6 +2,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState } from "react";
 import { useToast } from "@/components/ui/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 
 const agents = [
   {
@@ -48,10 +49,12 @@ interface AgentListProps {
 
 export const AgentList = ({ onSelectAgent, activeAgentId }: AgentListProps) => {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [typingAgents, setTypingAgents] = useState<Set<number>>(new Set());
 
   useEffect(() => {
-    // Subscribe to real-time typing indicators
+    if (!user) return;
+
     const channel = supabase.channel('typing-indicators')
       .on(
         'broadcast',
@@ -61,7 +64,6 @@ export const AgentList = ({ onSelectAgent, activeAgentId }: AgentListProps) => {
             setTypingAgents(prev => {
               const newSet = new Set(prev);
               newSet.add(payload.agentId);
-              // Remove typing indicator after 3 seconds
               setTimeout(() => {
                 setTypingAgents(prev => {
                   const newSet = new Set(prev);
@@ -79,13 +81,11 @@ export const AgentList = ({ onSelectAgent, activeAgentId }: AgentListProps) => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [user]);
 
   const handleAgentClick = async (agent: typeof agents[0]) => {
     try {
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-      
-      if (authError || !user) {
+      if (!user) {
         throw new Error("User must be logged in");
       }
 

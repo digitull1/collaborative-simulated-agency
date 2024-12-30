@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
+import { useToast } from '@/components/ui/use-toast';
 
 interface AuthContextType {
   session: Session | null;
@@ -20,6 +21,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const { toast } = useToast();
 
   useEffect(() => {
     // Get initial session
@@ -36,10 +38,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
+
+      if (!session) {
+        navigate('/login');
+        toast({
+          title: "Session expired",
+          description: "Please log in again to continue.",
+          variant: "destructive",
+        });
+      }
     });
 
     return () => subscription.unsubscribe();
-  }, [navigate]);
+  }, [navigate, toast]);
 
   return (
     <AuthContext.Provider value={{ session, user, loading }}>
