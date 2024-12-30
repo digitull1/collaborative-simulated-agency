@@ -151,6 +151,44 @@ export type Database = {
           },
         ]
       }
+      collaboration_metrics: {
+        Row: {
+          agent_name: string
+          details: Json | null
+          id: string
+          metric_type: string
+          recorded_at: string | null
+          value: number
+          workflow_id: string | null
+        }
+        Insert: {
+          agent_name: string
+          details?: Json | null
+          id?: string
+          metric_type: string
+          recorded_at?: string | null
+          value: number
+          workflow_id?: string | null
+        }
+        Update: {
+          agent_name?: string
+          details?: Json | null
+          id?: string
+          metric_type?: string
+          recorded_at?: string | null
+          value?: number
+          workflow_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "collaboration_metrics_workflow_id_fkey"
+            columns: ["workflow_id"]
+            isOneToOne: false
+            referencedRelation: "workflows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       content_blocks: {
         Row: {
           age_range: unknown
@@ -835,6 +873,7 @@ export type Database = {
         Row: {
           agent_name: string
           created_at: string | null
+          expertise: Json | null
           id: string
           role: string | null
           workflow_id: string | null
@@ -842,6 +881,7 @@ export type Database = {
         Insert: {
           agent_name: string
           created_at?: string | null
+          expertise?: Json | null
           id?: string
           role?: string | null
           workflow_id?: string | null
@@ -849,6 +889,7 @@ export type Database = {
         Update: {
           agent_name?: string
           created_at?: string | null
+          expertise?: Json | null
           id?: string
           role?: string | null
           workflow_id?: string | null

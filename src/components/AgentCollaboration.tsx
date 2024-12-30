@@ -1,14 +1,10 @@
 import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { MessageSquarePlus, AlertCircle } from "lucide-react";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Badge } from "@/components/ui/badge";
 import type { CollaborationLog, CollaborationRequest } from "@/types/collaboration";
+import { CollaborationRequest } from "./collaboration/CollaborationRequest";
+import { CollaborationHistory } from "./collaboration/CollaborationHistory";
+import { CollaborationMetrics } from "./collaboration/CollaborationMetrics";
 
 interface AgentCollaborationProps {
   projectId: string;
@@ -16,17 +12,11 @@ interface AgentCollaborationProps {
 }
 
 export const AgentCollaboration = ({ projectId, currentAgent }: AgentCollaborationProps) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [request, setRequest] = useState<CollaborationRequest>({
-    target_agent: "",
-    message: "",
-  });
   const [collaborationLogs, setCollaborationLogs] = useState<CollaborationLog[]>([]);
   const { toast } = useToast();
 
   useEffect(() => {
     const loadCollaborationLogs = async () => {
-      // Only fetch if we have a valid projectId
       if (!projectId) return;
       
       try {
@@ -45,7 +35,6 @@ export const AgentCollaboration = ({ projectId, currentAgent }: AgentCollaborati
 
     loadCollaborationLogs();
 
-    // Subscribe to real-time updates
     const channel = supabase
       .channel('agent_collaboration')
       .on(
@@ -70,7 +59,7 @@ export const AgentCollaboration = ({ projectId, currentAgent }: AgentCollaborati
     };
   }, [projectId]);
 
-  const sendCollaborationRequest = async () => {
+  const handleCollaborationRequest = async (request: CollaborationRequest) => {
     if (!projectId) {
       toast({
         title: "Error",
@@ -81,7 +70,8 @@ export const AgentCollaboration = ({ projectId, currentAgent }: AgentCollaborati
     }
 
     try {
-      const { error } = await supabase
+      // Record the collaboration request
+      const { error: logError } = await supabase
         .from("agent_collaboration_logs")
         .insert([
           {
@@ -92,7 +82,20 @@ export const AgentCollaboration = ({ projectId, currentAgent }: AgentCollaborati
           },
         ]);
 
-      if (error) throw error;
+      if (logError) throw logError;
+
+      // Record metrics for the collaboration
+      await supabase
+        .from("collaboration_metrics")
+        .insert([
+          {
+            workflow_id: projectId,
+            agent_name: currentAgent,
+            metric_type: 'collaboration_requests',
+            value: 1,
+            details: { target_agent: request.target_agent }
+          },
+        ]);
 
       // Create a notification for the target agent
       await supabase
@@ -105,12 +108,6 @@ export const AgentCollaboration = ({ projectId, currentAgent }: AgentCollaborati
             thread_id: projectId,
           },
         ]);
-
-      setIsOpen(false);
-      setRequest({
-        target_agent: "",
-        message: "",
-      });
 
       toast({
         title: "Success",
@@ -127,91 +124,12 @@ export const AgentCollaboration = ({ projectId, currentAgent }: AgentCollaborati
   };
 
   return (
-    <>
-      <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogTrigger asChild>
-          <Button variant="outline" size="sm" className="flex items-center gap-2">
-            <MessageSquarePlus className="h-4 w-4" />
-            Request Expertise
-          </Button>
-        </DialogTrigger>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Request Agent Expertise</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <label className="text-sm font-medium">Select Agent</label>
-              <Select
-                value={request.target_agent}
-                onValueChange={(value) =>
-                  setRequest({ ...request, target_agent: value })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select an agent" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Sophia Harper">Sophia Harper</SelectItem>
-                  <SelectItem value="Noor Patel">Noor Patel</SelectItem>
-                  <SelectItem value="Riley Kim">Riley Kim</SelectItem>
-                  <SelectItem value="Taylor Brooks">Taylor Brooks</SelectItem>
-                  <SelectItem value="Morgan Blake">Morgan Blake</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <label className="text-sm font-medium">Message</label>
-              <Textarea
-                value={request.message}
-                onChange={(e) =>
-                  setRequest({ ...request, message: e.target.value })
-                }
-                placeholder="Describe what you need help with..."
-              />
-            </div>
-            <Button onClick={sendCollaborationRequest}>Send Request</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {collaborationLogs.length > 0 && (
-        <Dialog>
-          <DialogTrigger asChild>
-            <Button variant="ghost" size="sm" className="ml-2">
-              <AlertCircle className="h-4 w-4 mr-2" />
-              View Collaboration History
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Collaboration History</DialogTitle>
-            </DialogHeader>
-            <ScrollArea className="h-[400px] mt-4">
-              <div className="space-y-4">
-                {collaborationLogs.map((log) => (
-                  <div key={log.id} className="border rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">{log.requesting_agent}</span>
-                        <span className="text-muted-foreground">→</span>
-                        <span className="font-medium">{log.target_agent}</span>
-                      </div>
-                      <Badge variant={log.status === 'completed' ? 'default' : 'secondary'}>
-                        {log.status}
-                      </Badge>
-                    </div>
-                    <p className="text-sm text-muted-foreground">{log.message}</p>
-                    <div className="text-xs text-muted-foreground mt-2">
-                      {new Date(log.created_at).toLocaleString()}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </ScrollArea>
-          </DialogContent>
-        </Dialog>
-      )}
-    </>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <CollaborationRequest onSubmit={handleCollaborationRequest} />
+        <CollaborationHistory logs={collaborationLogs} />
+      </div>
+      <CollaborationMetrics workflowId={projectId} />
+    </div>
   );
 };
