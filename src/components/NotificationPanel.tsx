@@ -1,59 +1,102 @@
 import { Bell, Check, Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
-
-const notifications = [
-  {
-    id: 1,
-    title: "Campaign Update",
-    message: "Sophia has updated the campaign strategy",
-    time: "5m ago",
-    unread: true,
-    type: "campaign",
-    sender: "Sophia Harper"
-  },
-  {
-    id: 2,
-    title: "New Insight",
-    message: "Noor discovered a trending pattern",
-    time: "15m ago",
-    unread: true,
-    type: "insight",
-    sender: "Noor Patel"
-  },
-  {
-    id: 3,
-    title: "Goal Achieved",
-    message: "Monthly engagement target reached",
-    time: "1h ago",
-    unread: false,
-    type: "achievement",
-    sender: "Taylor Brooks"
-  },
-];
-
-type NotificationType = "campaign" | "insight" | "achievement" | "all";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 export const NotificationPanel = () => {
   const { toast } = useToast();
-  const [filter, setFilter] = useState<NotificationType>("all");
+  const { user } = useAuth();
+  const [filter, setFilter] = useState<"all" | "campaign" | "insight">("all");
   const [unreadOnly, setUnreadOnly] = useState(false);
+  const [notifications, setNotifications] = useState<Array<{
+    id: string;
+    type: string;
+    content: string;
+    sender: string;
+    timestamp: string;
+    read: boolean;
+  }>>([]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const loadNotifications = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('notifications')
+          .select('*')
+          .order('timestamp', { ascending: false });
+
+        if (error) throw error;
+        setNotifications(data);
+      } catch (error) {
+        console.error('Error loading notifications:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load notifications",
+          variant: "destructive",
+        });
+      }
+    };
+
+    loadNotifications();
+
+    // Subscribe to real-time notifications
+    const channel = supabase
+      .channel('notifications')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'notifications'
+        },
+        (payload) => {
+          setNotifications(prev => [payload.new, ...prev]);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, toast]);
+
+  const markAllAsRead = async () => {
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .update({ read: true })
+        .eq('read', false);
+
+      if (error) throw error;
+
+      setNotifications(prev => 
+        prev.map(notification => ({ ...notification, read: true }))
+      );
+
+      toast({
+        title: "Success",
+        description: "All notifications marked as read",
+      });
+    } catch (error) {
+      console.error('Error marking notifications as read:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update notifications",
+        variant: "destructive",
+      });
+    }
+  };
 
   const filteredNotifications = notifications.filter(notification => {
-    if (unreadOnly && !notification.unread) return false;
+    if (unreadOnly && notification.read) return false;
     if (filter === "all") return true;
     return notification.type === filter;
   });
-
-  const markAllAsRead = () => {
-    // In a real app, this would call an API
-    toast({
-      title: "Success",
-      description: "All notifications marked as read",
-    });
-  };
 
   return (
     <div className="space-y-2">
@@ -113,15 +156,15 @@ export const NotificationPanel = () => {
               <Bell className="w-4 h-4 mt-0.5 mr-2 shrink-0" />
               <div className="flex-1 text-left">
                 <div className="font-medium flex items-center justify-between">
-                  <span>{notification.title}</span>
-                  {notification.unread && (
+                  <span>{notification.type}</span>
+                  {!notification.read && (
                     <div className="w-2 h-2 rounded-full bg-primary" />
                   )}
                 </div>
-                <p className="text-xs text-muted-foreground">{notification.message}</p>
+                <p className="text-xs text-muted-foreground">{notification.content}</p>
                 <div className="flex items-center justify-between text-xs text-muted-foreground">
                   <span>{notification.sender}</span>
-                  <span>{notification.time}</span>
+                  <span>{new Date(notification.timestamp).toLocaleString()}</span>
                 </div>
               </div>
             </button>

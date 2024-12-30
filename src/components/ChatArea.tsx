@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { ChatTarget } from "@/components/SlackLayout";
 import { Messages } from "@/components/Messages";
 import { MessageInput } from "@/components/MessageInput";
-import { ContextPanel } from "@/components/ContextPanel";
+import { ContextDrawer } from "@/components/ContextDrawer";
 import { useContextMemory } from "@/hooks/useContextMemory";
 
 interface ChatAreaProps {
@@ -208,13 +208,13 @@ export const ChatArea = ({ chatTarget }: ChatAreaProps) => {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="border-b border-border p-4">
+      <div className="border-b border-border p-4 flex items-center justify-between">
         <h2 className="text-lg font-semibold">
           {chatTarget.type === "channel" ? `#${chatTarget.name}` : chatTarget.name}
         </h2>
       </div>
       
-      {contextMemory && <ContextPanel contextMemory={contextMemory} />}
+      {contextMemory && <ContextDrawer contextMemory={contextMemory} />}
       
       <Messages 
         messages={messages}
