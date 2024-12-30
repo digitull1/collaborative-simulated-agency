@@ -1,4 +1,7 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { supabase } from "@/integrations/supabase/client";
+import { useEffect, useState } from "react";
+import { useToast } from "@/components/ui/use-toast";
 
 const agents = [
   {
@@ -40,16 +43,96 @@ const agents = [
 
 interface AgentListProps {
   onSelectAgent: (agent: typeof agents[0]) => void;
+  activeAgentId?: number;
 }
 
-export const AgentList = ({ onSelectAgent }: AgentListProps) => {
+export const AgentList = ({ onSelectAgent, activeAgentId }: AgentListProps) => {
+  const { toast } = useToast();
+  const [typingAgents, setTypingAgents] = useState<Set<number>>(new Set());
+
+  useEffect(() => {
+    // Subscribe to real-time typing indicators
+    const channel = supabase.channel('typing-indicators')
+      .on(
+        'broadcast',
+        { event: 'typing' },
+        ({ payload }) => {
+          if (payload.agentId) {
+            setTypingAgents(prev => {
+              const newSet = new Set(prev);
+              newSet.add(payload.agentId);
+              // Remove typing indicator after 3 seconds
+              setTimeout(() => {
+                setTypingAgents(prev => {
+                  const newSet = new Set(prev);
+                  newSet.delete(payload.agentId);
+                  return newSet;
+                });
+              }, 3000);
+              return newSet;
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  const handleAgentClick = async (agent: typeof agents[0]) => {
+    try {
+      // Check for existing thread
+      const { data: existingThread, error: fetchError } = await supabase
+        .from('threads')
+        .select('*')
+        .eq('type', 'agent')
+        .eq('name', agent.name)
+        .single();
+
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        throw fetchError;
+      }
+
+      if (!existingThread) {
+        // Create new thread
+        const { data: newThread, error: createError } = await supabase
+          .from('threads')
+          .insert([
+            {
+              type: 'agent',
+              name: agent.name,
+              participants: ['user', agent.name],
+              title: `Chat with ${agent.name}`
+            }
+          ])
+          .select()
+          .single();
+
+        if (createError) throw createError;
+      }
+
+      onSelectAgent(agent);
+    } catch (error) {
+      console.error('Error managing thread:', error);
+      toast({
+        title: "Error",
+        description: "Failed to open chat thread. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div className="space-y-1">
       {agents.map((agent) => (
         <button
           key={agent.id}
-          onClick={() => onSelectAgent(agent)}
-          className="flex items-center w-full space-x-4 rounded-lg p-2 hover:bg-sidebar-accent cursor-pointer transition-colors"
+          onClick={() => handleAgentClick(agent)}
+          className={`flex items-center w-full space-x-4 rounded-lg p-2 hover:bg-sidebar-accent cursor-pointer transition-colors ${
+            activeAgentId === agent.id ? 'bg-sidebar-accent' : ''
+          }`}
         >
           <div className="relative">
             <Avatar>
@@ -60,9 +143,14 @@ export const AgentList = ({ onSelectAgent }: AgentListProps) => {
               agent.status === "online" ? "bg-green-500" : "bg-gray-500"
             }`} />
           </div>
-          <div className="text-left">
+          <div className="text-left flex-1">
             <h3 className="font-medium text-sm">{agent.name}</h3>
             <p className="text-xs text-muted-foreground">{agent.role}</p>
+            {typingAgents.has(agent.id) && (
+              <p className="text-xs text-muted-foreground animate-pulse">
+                typing...
+              </p>
+            )}
           </div>
         </button>
       ))}

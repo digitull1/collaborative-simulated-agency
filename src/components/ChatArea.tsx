@@ -2,10 +2,11 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Send } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ChatMessage } from "@/components/ChatMessage";
 import { generateAgentResponse } from "@/services/ai";
 import { useToast } from "@/components/ui/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 import type { ChatTarget } from "@/components/SlackLayout";
 
 interface ChatAreaProps {
@@ -20,19 +21,95 @@ export const ChatArea = ({ chatTarget }: ChatAreaProps) => {
     sender: string;
     timestamp: Date;
     agentId?: number;
-  }>>([
-    {
-      id: 1,
-      content: chatTarget.type === "channel" 
-        ? `Welcome to #${chatTarget.name}! How can our team help you today?`
-        : `Welcome to AIGency! I'm ${chatTarget.name}, your ${chatTarget.type === "agent" ? "AI assistant" : "channel"}. How can I help you today?`,
-      sender: chatTarget.type === "channel" ? "System" : chatTarget.name,
-      timestamp: new Date(),
-      agentId: chatTarget.type === "agent" ? Number(chatTarget.id) : undefined,
-    },
-  ]);
+  }>>([]);
   const [newMessage, setNewMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [threadId, setThreadId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadThread = async () => {
+      try {
+        // Find or create thread for this chat target
+        const { data: existingThread, error: fetchError } = await supabase
+          .from('threads')
+          .select('*')
+          .eq('type', chatTarget.type)
+          .eq('name', chatTarget.name)
+          .single();
+
+        if (fetchError && fetchError.code !== 'PGRST116') {
+          throw fetchError;
+        }
+
+        if (existingThread) {
+          setThreadId(existingThread.id);
+          // Load thread messages
+          const { data: threadMessages, error: messagesError } = await supabase
+            .from('thread_messages')
+            .select('*')
+            .eq('thread_id', existingThread.id)
+            .order('timestamp', { ascending: true });
+
+          if (messagesError) throw messagesError;
+
+          setMessages(threadMessages.map((msg, index) => ({
+            id: index + 1,
+            content: msg.content,
+            sender: msg.sender,
+            timestamp: new Date(msg.timestamp),
+            agentId: chatTarget.type === 'agent' ? Number(chatTarget.id) : undefined,
+          })));
+        } else {
+          // Initialize with welcome message
+          setMessages([{
+            id: 1,
+            content: chatTarget.type === "channel" 
+              ? `Welcome to #${chatTarget.name}! How can our team help you today?`
+              : `Welcome to AIGency! I'm ${chatTarget.name}, your ${chatTarget.type === "agent" ? "AI assistant" : "channel"}. How can I help you today?`,
+            sender: chatTarget.type === "channel" ? "System" : chatTarget.name,
+            timestamp: new Date(),
+            agentId: chatTarget.type === "agent" ? Number(chatTarget.id) : undefined,
+          }]);
+        }
+      } catch (error) {
+        console.error('Error loading thread:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load chat history. Please try again.",
+          variant: "destructive",
+        });
+      }
+    };
+
+    loadThread();
+
+    // Subscribe to real-time message updates
+    const channel = supabase.channel('thread-messages')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'thread_messages',
+          filter: `thread_id=eq.${threadId}`
+        },
+        (payload) => {
+          const newMessage = payload.new;
+          setMessages(prev => [...prev, {
+            id: prev.length + 1,
+            content: newMessage.content,
+            sender: newMessage.sender,
+            timestamp: new Date(newMessage.timestamp),
+            agentId: chatTarget.type === 'agent' ? Number(chatTarget.id) : undefined,
+          }]);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [chatTarget, threadId, toast]);
 
   const handleSendMessage = async () => {
     if (!newMessage.trim() || isLoading) return;
@@ -49,6 +126,19 @@ export const ChatArea = ({ chatTarget }: ChatAreaProps) => {
     setIsLoading(true);
 
     try {
+      // Save message to thread
+      if (threadId) {
+        const { error: messageError } = await supabase
+          .from('thread_messages')
+          .insert([{
+            thread_id: threadId,
+            content: newMessage,
+            sender: "You",
+          }]);
+
+        if (messageError) throw messageError;
+      }
+
       const agentName = chatTarget.name;
       const chatHistory = messages.map(msg => ({
         sender: msg.sender,
@@ -57,6 +147,19 @@ export const ChatArea = ({ chatTarget }: ChatAreaProps) => {
       
       const response = await generateAgentResponse(agentName, newMessage, chatHistory);
       
+      // Save agent response to thread
+      if (threadId) {
+        const { error: responseError } = await supabase
+          .from('thread_messages')
+          .insert([{
+            thread_id: threadId,
+            content: response,
+            sender: agentName,
+          }]);
+
+        if (responseError) throw responseError;
+      }
+
       setMessages(prev => [...prev, {
         id: prev.length + 1,
         content: response,
@@ -65,9 +168,10 @@ export const ChatArea = ({ chatTarget }: ChatAreaProps) => {
         agentId: chatTarget.type === "agent" ? Number(chatTarget.id) : undefined,
       }]);
     } catch (error) {
+      console.error('Error sending message:', error);
       toast({
         title: "Error",
-        description: "Failed to generate response. Please try again.",
+        description: "Failed to send message. Please try again.",
         variant: "destructive",
       });
     } finally {
