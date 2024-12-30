@@ -6,8 +6,13 @@ import { useState } from "react";
 import { ChatMessage } from "@/components/ChatMessage";
 import { generateAgentResponse } from "@/services/ai";
 import { useToast } from "@/components/ui/use-toast";
+import type { ChatTarget } from "@/components/SlackLayout";
 
-export const ChatArea = () => {
+interface ChatAreaProps {
+  chatTarget: ChatTarget;
+}
+
+export const ChatArea = ({ chatTarget }: ChatAreaProps) => {
   const { toast } = useToast();
   const [messages, setMessages] = useState<Array<{
     id: number;
@@ -18,10 +23,12 @@ export const ChatArea = () => {
   }>>([
     {
       id: 1,
-      content: "Welcome to AIGency! I'm Sophia, your Campaign Architect. How can our team help you today?",
-      sender: "Sophia Harper",
+      content: chatTarget.type === "channel" 
+        ? `Welcome to #${chatTarget.name}! How can our team help you today?`
+        : `Welcome to AIGency! I'm ${chatTarget.name}, your ${chatTarget.type === "agent" ? "AI assistant" : "channel"}. How can I help you today?`,
+      sender: chatTarget.type === "channel" ? "System" : chatTarget.name,
       timestamp: new Date(),
-      agentId: 1,
+      agentId: chatTarget.type === "agent" ? Number(chatTarget.id) : undefined,
     },
   ]);
   const [newMessage, setNewMessage] = useState("");
@@ -42,8 +49,7 @@ export const ChatArea = () => {
     setIsLoading(true);
 
     try {
-      // For now, we'll always have Sophia respond
-      const agentName = "Sophia Harper";
+      const agentName = chatTarget.name;
       const chatHistory = messages.map(msg => ({
         sender: msg.sender,
         content: msg.content
@@ -56,7 +62,7 @@ export const ChatArea = () => {
         content: response,
         sender: agentName,
         timestamp: new Date(),
-        agentId: 1,
+        agentId: chatTarget.type === "agent" ? Number(chatTarget.id) : undefined,
       }]);
     } catch (error) {
       toast({
@@ -71,6 +77,12 @@ export const ChatArea = () => {
 
   return (
     <div className="flex h-full flex-col">
+      <div className="border-b border-border p-4">
+        <h2 className="text-lg font-semibold">
+          {chatTarget.type === "channel" ? `#${chatTarget.name}` : chatTarget.name}
+        </h2>
+      </div>
+      
       <ScrollArea className="flex-1 p-4">
         <div className="space-y-4">
           {messages.map((message) => (
@@ -78,7 +90,9 @@ export const ChatArea = () => {
           ))}
           {isLoading && (
             <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-              <div className="animate-pulse">Sophia is typing...</div>
+              <div className="animate-pulse">
+                {chatTarget.name} is typing...
+              </div>
             </div>
           )}
         </div>
@@ -89,7 +103,7 @@ export const ChatArea = () => {
           <Input
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
-            placeholder="Type your message..."
+            placeholder={`Message ${chatTarget.type === "channel" ? `#${chatTarget.name}` : chatTarget.name}...`}
             disabled={isLoading}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {

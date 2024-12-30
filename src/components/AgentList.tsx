@@ -38,13 +38,18 @@ const agents = [
   },
 ];
 
-export const AgentList = () => {
+interface AgentListProps {
+  onSelectAgent: (agent: typeof agents[0]) => void;
+}
+
+export const AgentList = ({ onSelectAgent }: AgentListProps) => {
   return (
-    <div className="space-y-4">
+    <div className="space-y-1">
       {agents.map((agent) => (
-        <div
+        <button
           key={agent.id}
-          className="flex items-center space-x-4 rounded-lg p-2 hover:bg-sidebar-accent cursor-pointer transition-colors"
+          onClick={() => onSelectAgent(agent)}
+          className="flex items-center w-full space-x-4 rounded-lg p-2 hover:bg-sidebar-accent cursor-pointer transition-colors"
         >
           <div className="relative">
             <Avatar>
@@ -55,11 +60,11 @@ export const AgentList = () => {
               agent.status === "online" ? "bg-green-500" : "bg-gray-500"
             }`} />
           </div>
-          <div>
+          <div className="text-left">
             <h3 className="font-medium text-sm">{agent.name}</h3>
             <p className="text-xs text-muted-foreground">{agent.role}</p>
           </div>
-        </div>
+        </button>
       ))}
     </div>
   );
