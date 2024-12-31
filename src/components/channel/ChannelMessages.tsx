@@ -4,6 +4,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Messages } from "@/components/Messages";
 import { MessageInput } from "@/components/MessageInput";
 import { generateAgentResponse } from "@/services/ai";
+import { Loader2 } from "lucide-react";
 
 interface ChannelMessagesProps {
   channelId: string;
@@ -21,7 +22,9 @@ export const ChannelMessages = ({ channelId, channelName }: ChannelMessagesProps
   }>>([]);
   const [newMessage, setNewMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [agentTyping, setAgentTyping] = useState<string | null>(null);
 
+  // Load initial messages and set up real-time listener
   useEffect(() => {
     const loadMessages = async () => {
       try {
@@ -38,7 +41,7 @@ export const ChannelMessages = ({ channelId, channelName }: ChannelMessagesProps
           content: msg.content,
           sender: msg.sender,
           timestamp: new Date(msg.timestamp),
-          agentId: msg.sender.startsWith('@') ? undefined : undefined, // Will be set for agent responses
+          agentId: msg.sender.startsWith('@') ? Number(msg.sender.substring(1)) : undefined,
         }));
 
         setMessages(formattedMessages);
@@ -46,43 +49,46 @@ export const ChannelMessages = ({ channelId, channelName }: ChannelMessagesProps
         console.error('Error loading messages:', error);
         toast({
           title: "Error",
-          description: "Failed to load messages. Please try again.",
+          description: "Failed to load message history. Please try again.",
           variant: "destructive",
         });
       }
     };
 
-    if (channelId) {
-      loadMessages();
+    loadMessages();
 
-      // Subscribe to real-time updates
-      const channel = supabase
-        .channel(`channel-${channelId}`)
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'thread_messages',
-            filter: `thread_id=eq.${channelId}`
-          },
-          (payload) => {
-            const newMessage = payload.new;
-            setMessages(prev => [...prev, {
-              id: prev.length + 1,
-              content: newMessage.content,
-              sender: newMessage.sender,
-              timestamp: new Date(newMessage.timestamp),
-              agentId: newMessage.sender.startsWith('@') ? undefined : undefined,
-            }]);
+    // Subscribe to real-time updates
+    const channel = supabase
+      .channel(`channel-${channelId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'thread_messages',
+          filter: `thread_id=eq.${channelId}`
+        },
+        (payload) => {
+          const newMessage = payload.new;
+          setMessages(prev => [...prev, {
+            id: prev.length + 1,
+            content: newMessage.content,
+            sender: newMessage.sender,
+            timestamp: new Date(newMessage.timestamp),
+            agentId: newMessage.sender.startsWith('@') ? Number(newMessage.sender.substring(1)) : undefined,
+          }]);
+
+          // Clear agent typing indicator if this is an agent response
+          if (newMessage.sender.startsWith('@')) {
+            setAgentTyping(null);
           }
-        )
-        .subscribe();
+        }
+      )
+      .subscribe();
 
-      return () => {
-        supabase.removeChannel(channel);
-      };
-    }
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [channelId, toast]);
 
   const handleSendMessage = async () => {
@@ -105,48 +111,40 @@ export const ChannelMessages = ({ channelId, channelName }: ChannelMessagesProps
 
       if (messageError) throw messageError;
 
-      // Create notification for the message
-      await supabase
-        .from('notifications')
-        .insert([{
-          type: 'message',
-          sender: 'You',
-          content: `New message in #${channelName}`,
-          thread_id: channelId,
-        }]);
-
       // Handle agent responses for @mentions
       if (mentionedAgents) {
         for (const mention of mentionedAgents) {
-          const agentName = mention.substring(1); // Remove @ symbol
+          const agentName = mention.substring(1);
+          setAgentTyping(agentName);
           
-          // Get chat history for context
-          const chatHistory = messages.slice(-5).map(msg => ({
-            sender: msg.sender,
-            content: msg.content
-          }));
-          
-          const response = await generateAgentResponse(agentName, newMessage, chatHistory);
-          
-          const { error: agentError } = await supabase
-            .from('thread_messages')
-            .insert([{
-              thread_id: channelId,
-              content: response,
-              sender: agentName,
-            }]);
+          try {
+            // Get chat history for context
+            const chatHistory = messages.slice(-5).map(msg => ({
+              sender: msg.sender,
+              content: msg.content
+            }));
+            
+            const response = await generateAgentResponse(agentName, newMessage, chatHistory);
+            
+            const { error: agentError } = await supabase
+              .from('thread_messages')
+              .insert([{
+                thread_id: channelId,
+                content: response,
+                sender: `@${agentName}`,
+              }]);
 
-          if (agentError) throw agentError;
-
-          // Create notification for agent response
-          await supabase
-            .from('notifications')
-            .insert([{
-              type: 'agent',
-              sender: agentName,
-              content: `${agentName} responded in #${channelName}`,
-              thread_id: channelId,
-            }]);
+            if (agentError) throw agentError;
+          } catch (error) {
+            console.error(`Error getting response from agent ${agentName}:`, error);
+            toast({
+              title: "Agent Error",
+              description: `Failed to get response from ${agentName}. Please try again.`,
+              variant: "destructive",
+            });
+          } finally {
+            setAgentTyping(null);
+          }
         }
       }
 
@@ -170,6 +168,13 @@ export const ChannelMessages = ({ channelId, channelName }: ChannelMessagesProps
         isLoading={isLoading}
         chatTargetName={channelName}
       />
+      
+      {agentTyping && (
+        <div className="flex items-center gap-2 px-4 py-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <span>{agentTyping} is typing...</span>
+        </div>
+      )}
       
       <MessageInput
         newMessage={newMessage}
