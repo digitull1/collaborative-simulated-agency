@@ -11,6 +11,7 @@ import { TaskList } from "@/components/TaskList";
 import { AgentCollaboration } from "@/components/AgentCollaboration";
 import { useContextMemory } from "@/hooks/useContextMemory";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ChannelMessages } from "./channel/ChannelMessages";
 
 interface ChatAreaProps {
   chatTarget: ChatTarget;
@@ -51,24 +52,27 @@ export const ChatArea = ({ chatTarget }: ChatAreaProps) => {
 
         if (existingThread) {
           setThreadId(existingThread.id);
-          // Load thread messages
-          const { data: threadMessages, error: messagesError } = await supabase
-            .from('thread_messages')
-            .select('*')
-            .eq('thread_id', existingThread.id)
-            .order('timestamp', { ascending: true });
+          
+          if (chatTarget.type === 'agent') {
+            // Load thread messages for agent chat
+            const { data: threadMessages, error: messagesError } = await supabase
+              .from('thread_messages')
+              .select('*')
+              .eq('thread_id', existingThread.id)
+              .order('timestamp', { ascending: true });
 
-          if (messagesError) throw messagesError;
+            if (messagesError) throw messagesError;
 
-          const formattedMessages = threadMessages.map((msg, index) => ({
-            id: index + 1,
-            content: msg.content,
-            sender: msg.sender,
-            timestamp: new Date(msg.timestamp),
-            agentId: chatTarget.type === 'agent' ? Number(chatTarget.id) : undefined,
-          }));
+            const formattedMessages = threadMessages.map((msg, index) => ({
+              id: index + 1,
+              content: msg.content,
+              sender: msg.sender,
+              timestamp: new Date(msg.timestamp),
+              agentId: chatTarget.type === 'agent' ? Number(chatTarget.id) : undefined,
+            }));
 
-          setMessages(formattedMessages);
+            setMessages(formattedMessages);
+          }
         } else {
           // Create new thread
           const { data: newThread, error: createError } = await supabase
@@ -76,7 +80,7 @@ export const ChatArea = ({ chatTarget }: ChatAreaProps) => {
             .insert([{
               type: chatTarget.type,
               title: chatTarget.name,
-              participants: [user.id, chatTarget.name],
+              participants: [user.id],
               last_message: null,
               last_message_at: null
             }])
@@ -86,16 +90,17 @@ export const ChatArea = ({ chatTarget }: ChatAreaProps) => {
           if (createError) throw createError;
 
           setThreadId(newThread.id);
-          const welcomeMessage = {
-            id: 1,
-            content: chatTarget.type === "channel" 
-              ? `Welcome to #${chatTarget.name}! How can our team help you today?`
-              : `Welcome to AIGency! I'm ${chatTarget.name}, your ${chatTarget.type === "agent" ? "AI assistant" : "channel"}. How can I help you today?`,
-            sender: chatTarget.type === "channel" ? "System" : chatTarget.name,
-            timestamp: new Date(),
-            agentId: chatTarget.type === "agent" ? Number(chatTarget.id) : undefined,
-          };
-          setMessages([welcomeMessage]);
+          
+          if (chatTarget.type === 'agent') {
+            const welcomeMessage = {
+              id: 1,
+              content: `Welcome! I'm ${chatTarget.name}, your AI assistant. How can I help you today?`,
+              sender: chatTarget.name,
+              timestamp: new Date(),
+              agentId: Number(chatTarget.id),
+            };
+            setMessages([welcomeMessage]);
+          }
         }
       } catch (error) {
         console.error('Error loading thread:', error);
@@ -108,86 +113,33 @@ export const ChatArea = ({ chatTarget }: ChatAreaProps) => {
     };
 
     loadThread();
-
-    // Subscribe to real-time message updates
-    let channel: any;
-    if (threadId) {
-      channel = supabase.channel(`thread-${threadId}`)
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'thread_messages',
-            filter: `thread_id=eq.${threadId}`
-          },
-          (payload) => {
-            const newMessage = payload.new;
-            setMessages(prev => {
-              const messageExists = prev.some(msg => 
-                msg.content === newMessage.content && 
-                msg.sender === newMessage.sender &&
-                Math.abs(new Date(msg.timestamp).getTime() - new Date(newMessage.timestamp).getTime()) < 1000
-              );
-              if (!messageExists) {
-                return [...prev, {
-                  id: prev.length + 1,
-                  content: newMessage.content,
-                  sender: newMessage.sender,
-                  timestamp: new Date(newMessage.timestamp),
-                  agentId: chatTarget.type === 'agent' ? Number(chatTarget.id) : undefined,
-                }];
-              }
-              return prev;
-            });
-          }
-        )
-        .subscribe();
-    }
-
-    return () => {
-      if (channel) {
-        supabase.removeChannel(channel);
-      }
-    };
-  }, [chatTarget, threadId, toast]);
+  }, [chatTarget, toast]);
 
   const handleSendMessage = async () => {
-    if (!newMessage.trim() || isLoading) return;
+    if (!newMessage.trim() || isLoading || !threadId) return;
     
-    const userMessage = {
-      id: messages.length + 1,
-      content: newMessage,
-      sender: "You",
-      timestamp: new Date(),
-    };
-    
-    setMessages(prev => [...prev, userMessage]);
-    setNewMessage("");
     setIsLoading(true);
 
     try {
-      if (threadId) {
-        const { error: messageError } = await supabase
-          .from('thread_messages')
-          .insert([{
-            thread_id: threadId,
-            content: newMessage,
-            sender: "You",
-          }]);
+      const { error: messageError } = await supabase
+        .from('thread_messages')
+        .insert([{
+          thread_id: threadId,
+          content: newMessage,
+          sender: "You",
+        }]);
 
-        if (messageError) throw messageError;
-      }
+      if (messageError) throw messageError;
 
-      const agentName = chatTarget.name;
-      const chatHistory = messages.map(msg => ({
-        sender: msg.sender,
-        content: msg.content
-      }));
-      
-      const response = await generateAgentResponse(agentName, newMessage, chatHistory);
-      
-      if (threadId) {
+      if (chatTarget.type === 'agent') {
+        const agentName = chatTarget.name;
+        const chatHistory = messages.map(msg => ({
+          sender: msg.sender,
+          content: msg.content
+        }));
+        
+        const response = await generateAgentResponse(agentName, newMessage, chatHistory);
+        
         const { error: responseError } = await supabase
           .from('thread_messages')
           .insert([{
@@ -198,6 +150,8 @@ export const ChatArea = ({ chatTarget }: ChatAreaProps) => {
 
         if (responseError) throw responseError;
       }
+
+      setNewMessage("");
     } catch (error) {
       console.error('Error sending message:', error);
       toast({
@@ -216,9 +170,9 @@ export const ChatArea = ({ chatTarget }: ChatAreaProps) => {
         <h2 className="text-lg font-semibold">
           {chatTarget.type === "channel" ? `#${chatTarget.name}` : chatTarget.name}
         </h2>
-        {chatTarget.type === "agent" && (
+        {chatTarget.type === "agent" && threadId && (
           <AgentCollaboration
-            projectId={threadId || ""}
+            projectId={threadId}
             currentAgent={chatTarget.name}
           />
         )}
@@ -234,19 +188,28 @@ export const ChatArea = ({ chatTarget }: ChatAreaProps) => {
         </TabsList>
         
         <TabsContent value="chat" className="flex-1 flex flex-col">
-          <Messages 
-            messages={messages}
-            isLoading={isLoading}
-            chatTargetName={chatTarget.name}
-          />
-          
-          <MessageInput
-            newMessage={newMessage}
-            setNewMessage={setNewMessage}
-            handleSendMessage={handleSendMessage}
-            isLoading={isLoading}
-            placeholder={`Message ${chatTarget.type === "channel" ? `#${chatTarget.name}` : chatTarget.name}...`}
-          />
+          {chatTarget.type === 'channel' && threadId ? (
+            <ChannelMessages 
+              channelId={threadId}
+              channelName={chatTarget.name}
+            />
+          ) : (
+            <>
+              <Messages 
+                messages={messages}
+                isLoading={isLoading}
+                chatTargetName={chatTarget.name}
+              />
+              
+              <MessageInput
+                newMessage={newMessage}
+                setNewMessage={setNewMessage}
+                handleSendMessage={handleSendMessage}
+                isLoading={isLoading}
+                placeholder={`Message ${chatTarget.name}...`}
+              />
+            </>
+          )}
         </TabsContent>
 
         <TabsContent value="tasks" className="flex-1 p-4">
