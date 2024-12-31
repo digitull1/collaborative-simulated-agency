@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Messages } from "@/components/Messages";
 import { MessageInput } from "@/components/MessageInput";
+import { generateAgentResponse } from "@/services/ai";
 
 interface ChannelMessagesProps {
   channelId: string;
@@ -90,6 +91,7 @@ export const ChannelMessages = ({ channelId, channelName }: ChannelMessagesProps
       const { data: { user }, error: authError } = await supabase.auth.getUser();
       if (authError || !user) throw new Error("User must be logged in");
 
+      // Send user message
       const { error: messageError } = await supabase
         .from('thread_messages')
         .insert([{
@@ -99,6 +101,30 @@ export const ChannelMessages = ({ channelId, channelName }: ChannelMessagesProps
         }]);
 
       if (messageError) throw messageError;
+
+      // Check if message mentions any agents
+      const mentionedAgents = newMessage.match(/@(\w+)/g);
+      if (mentionedAgents) {
+        for (const mention of mentionedAgents) {
+          const agentName = mention.substring(1); // Remove @ symbol
+          const chatHistory = messages.map(msg => ({
+            sender: msg.sender,
+            content: msg.content
+          }));
+          
+          const response = await generateAgentResponse(agentName, newMessage, chatHistory);
+          
+          const { error: agentError } = await supabase
+            .from('thread_messages')
+            .insert([{
+              thread_id: channelId,
+              content: response,
+              sender: agentName,
+            }]);
+
+          if (agentError) throw agentError;
+        }
+      }
 
       setNewMessage("");
     } catch (error) {

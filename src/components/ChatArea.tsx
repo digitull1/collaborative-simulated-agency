@@ -3,15 +3,10 @@ import { generateAgentResponse } from "@/services/ai";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import type { ChatTarget } from "@/components/SlackLayout";
-import { Messages } from "@/components/Messages";
-import { MessageInput } from "@/components/MessageInput";
 import { ContextDrawer } from "@/components/ContextDrawer";
-import { WorkflowDashboard } from "@/components/WorkflowDashboard";
-import { TaskList } from "@/components/TaskList";
-import { AgentCollaboration } from "@/components/AgentCollaboration";
 import { useContextMemory } from "@/hooks/useContextMemory";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ChannelMessages } from "./channel/ChannelMessages";
+import { ChatHeader } from "@/components/chat/ChatHeader";
+import { ChatContent } from "@/components/chat/ChatContent";
 
 interface ChatAreaProps {
   chatTarget: ChatTarget;
@@ -166,62 +161,19 @@ export const ChatArea = ({ chatTarget }: ChatAreaProps) => {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="border-b border-border p-4 flex items-center justify-between">
-        <h2 className="text-lg font-semibold">
-          {chatTarget.type === "channel" ? `#${chatTarget.name}` : chatTarget.name}
-        </h2>
-        {chatTarget.type === "agent" && threadId && (
-          <AgentCollaboration
-            projectId={threadId}
-            currentAgent={chatTarget.name}
-          />
-        )}
-      </div>
+      <ChatHeader chatTarget={chatTarget} threadId={threadId} />
       
       {contextMemory && <ContextDrawer contextMemory={contextMemory} />}
       
-      <Tabs defaultValue="chat" className="flex-1">
-        <TabsList className="mx-4 mt-2">
-          <TabsTrigger value="chat">Chat</TabsTrigger>
-          <TabsTrigger value="tasks">Tasks</TabsTrigger>
-          <TabsTrigger value="workflows">Workflows</TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="chat" className="flex-1 flex flex-col">
-          {chatTarget.type === 'channel' && threadId ? (
-            <ChannelMessages 
-              channelId={threadId}
-              channelName={chatTarget.name}
-            />
-          ) : (
-            <>
-              <Messages 
-                messages={messages}
-                isLoading={isLoading}
-                chatTargetName={chatTarget.name}
-              />
-              
-              <MessageInput
-                newMessage={newMessage}
-                setNewMessage={setNewMessage}
-                handleSendMessage={handleSendMessage}
-                isLoading={isLoading}
-                placeholder={`Message ${chatTarget.name}...`}
-              />
-            </>
-          )}
-        </TabsContent>
-
-        <TabsContent value="tasks" className="flex-1 p-4">
-          {threadId && (
-            <TaskList projectId={threadId} currentAgent={chatTarget.name} />
-          )}
-        </TabsContent>
-        
-        <TabsContent value="workflows" className="flex-1">
-          {threadId && <WorkflowDashboard projectId={threadId} />}
-        </TabsContent>
-      </Tabs>
+      <ChatContent
+        chatTarget={chatTarget}
+        threadId={threadId}
+        messages={messages}
+        isLoading={isLoading}
+        newMessage={newMessage}
+        setNewMessage={setNewMessage}
+        handleSendMessage={handleSendMessage}
+      />
     </div>
   );
 };
