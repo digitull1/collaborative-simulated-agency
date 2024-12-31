@@ -53,7 +53,7 @@ export const ChannelMessages = ({ channelId, channelName }: ChannelMessagesProps
     if (channelId) {
       loadMessages();
 
-      // Subscribe to real-time message updates
+      // Subscribe to real-time updates
       const channel = supabase
         .channel(`channel-${channelId}`)
         .on(
@@ -88,22 +88,21 @@ export const ChannelMessages = ({ channelId, channelName }: ChannelMessagesProps
     setIsLoading(true);
 
     try {
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-      if (authError || !user) throw new Error("User must be logged in");
-
+      // Check for @mentions
+      const mentionedAgents = newMessage.match(/@(\w+)/g);
+      
       // Send user message
       const { error: messageError } = await supabase
         .from('thread_messages')
         .insert([{
           thread_id: channelId,
           content: newMessage,
-          sender: user.email || "Anonymous",
+          sender: "You",
         }]);
 
       if (messageError) throw messageError;
 
-      // Check if message mentions any agents
-      const mentionedAgents = newMessage.match(/@(\w+)/g);
+      // Handle agent responses for @mentions
       if (mentionedAgents) {
         for (const mention of mentionedAgents) {
           const agentName = mention.substring(1); // Remove @ symbol
@@ -123,6 +122,16 @@ export const ChannelMessages = ({ channelId, channelName }: ChannelMessagesProps
             }]);
 
           if (agentError) throw agentError;
+
+          // Create notification for agent response
+          await supabase
+            .from('notifications')
+            .insert([{
+              type: 'agent_response',
+              sender: agentName,
+              content: `${agentName} responded to your message in #${channelName}`,
+              thread_id: channelId,
+            }]);
         }
       }
 

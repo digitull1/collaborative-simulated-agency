@@ -1,4 +1,4 @@
-import { Check } from "lucide-react";
+import { Check, Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useState, useEffect } from "react";
@@ -12,7 +12,7 @@ import type { Notification } from "@/types/notification";
 export const NotificationPanel = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
-  const [filter, setFilter] = useState<"all" | "campaign" | "insight">("all");
+  const [filter, setFilter] = useState<"all" | "agent" | "system">("all");
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
 
@@ -38,6 +38,7 @@ export const NotificationPanel = () => {
 
     loadNotifications();
 
+    // Subscribe to real-time notifications
     const channel = supabase
       .channel('notifications')
       .on(
@@ -50,6 +51,12 @@ export const NotificationPanel = () => {
         (payload) => {
           const newNotification = payload.new as Notification;
           setNotifications(prev => [newNotification, ...prev]);
+          
+          // Show toast for new notification
+          toast({
+            title: newNotification.type === 'agent_response' ? "New Agent Response" : "New Notification",
+            description: newNotification.content,
+          });
         }
       )
       .subscribe();
@@ -117,18 +124,21 @@ export const NotificationPanel = () => {
   const filteredNotifications = notifications.filter(notification => {
     if (unreadOnly && notification.read) return false;
     if (filter === "all") return true;
-    return notification.type === filter;
+    return notification.type.startsWith(filter);
   });
 
   return (
-    <div className="space-y-2">
-      <div className="flex justify-end px-2">
+    <div className="space-y-2 p-4 bg-background rounded-lg border border-border">
+      <div className="flex justify-between items-center">
+        <h2 className="text-lg font-semibold">Notifications</h2>
         <Button
           variant="ghost"
           size="sm"
           onClick={markAllAsRead}
+          className="hover:bg-secondary"
         >
-          <Check className="w-4 h-4" />
+          <Check className="w-4 h-4 mr-2" />
+          Mark all as read
         </Button>
       </div>
 
@@ -140,14 +150,21 @@ export const NotificationPanel = () => {
       />
 
       <ScrollArea className="h-[300px]">
-        <div className="space-y-1">
-          {filteredNotifications.map((notification) => (
-            <NotificationItem
-              key={notification.id}
-              notification={notification}
-              onClick={handleNotificationClick}
-            />
-          ))}
+        <div className="space-y-2">
+          {filteredNotifications.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+              <Bell className="w-8 h-8 mb-2" />
+              <p>No notifications to show</p>
+            </div>
+          ) : (
+            filteredNotifications.map((notification) => (
+              <NotificationItem
+                key={notification.id}
+                notification={notification}
+                onClick={handleNotificationClick}
+              />
+            ))
+          )}
         </div>
       </ScrollArea>
     </div>
