@@ -17,6 +17,7 @@ export const ChannelMessages = ({ channelId, channelName }: ChannelMessagesProps
     content: string;
     sender: string;
     timestamp: Date;
+    agentId?: number;
   }>>([]);
   const [newMessage, setNewMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -37,6 +38,7 @@ export const ChannelMessages = ({ channelId, channelName }: ChannelMessagesProps
           content: msg.content,
           sender: msg.sender,
           timestamp: new Date(msg.timestamp),
+          agentId: msg.sender.startsWith('@') ? undefined : undefined, // Will be set for agent responses
         }));
 
         setMessages(formattedMessages);
@@ -71,6 +73,7 @@ export const ChannelMessages = ({ channelId, channelName }: ChannelMessagesProps
               content: newMessage.content,
               sender: newMessage.sender,
               timestamp: new Date(newMessage.timestamp),
+              agentId: newMessage.sender.startsWith('@') ? undefined : undefined,
             }]);
           }
         )
@@ -88,7 +91,7 @@ export const ChannelMessages = ({ channelId, channelName }: ChannelMessagesProps
     setIsLoading(true);
 
     try {
-      // Check for @mentions
+      // Extract @mentions from the message
       const mentionedAgents = newMessage.match(/@(\w+)/g);
       
       // Send user message
@@ -102,11 +105,23 @@ export const ChannelMessages = ({ channelId, channelName }: ChannelMessagesProps
 
       if (messageError) throw messageError;
 
+      // Create notification for the message
+      await supabase
+        .from('notifications')
+        .insert([{
+          type: 'message',
+          sender: 'You',
+          content: `New message in #${channelName}`,
+          thread_id: channelId,
+        }]);
+
       // Handle agent responses for @mentions
       if (mentionedAgents) {
         for (const mention of mentionedAgents) {
           const agentName = mention.substring(1); // Remove @ symbol
-          const chatHistory = messages.map(msg => ({
+          
+          // Get chat history for context
+          const chatHistory = messages.slice(-5).map(msg => ({
             sender: msg.sender,
             content: msg.content
           }));
@@ -127,9 +142,9 @@ export const ChannelMessages = ({ channelId, channelName }: ChannelMessagesProps
           await supabase
             .from('notifications')
             .insert([{
-              type: 'agent_response',
+              type: 'agent',
               sender: agentName,
-              content: `${agentName} responded to your message in #${channelName}`,
+              content: `${agentName} responded in #${channelName}`,
               thread_id: channelId,
             }]);
         }
@@ -161,7 +176,7 @@ export const ChannelMessages = ({ channelId, channelName }: ChannelMessagesProps
         setNewMessage={setNewMessage}
         handleSendMessage={handleSendMessage}
         isLoading={isLoading}
-        placeholder={`Message #${channelName}...`}
+        placeholder={`Message #${channelName}... Use @agent to mention an agent`}
       />
     </div>
   );
