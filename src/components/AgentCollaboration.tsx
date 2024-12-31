@@ -16,12 +16,13 @@ export const AgentCollaboration = ({ projectId, currentAgent }: AgentCollaborati
   const { toast } = useToast();
 
   useEffect(() => {
+    // Validate projectId before making any API calls
+    if (!projectId || typeof projectId !== 'string' || projectId.includes(':')) {
+      console.log('Invalid project ID format');
+      return;
+    }
+    
     const loadCollaborationLogs = async () => {
-      if (!projectId) {
-        console.log('No project ID provided');
-        return;
-      }
-      
       try {
         const { data, error } = await supabase
           .from('agent_collaboration_logs')
@@ -44,37 +45,36 @@ export const AgentCollaboration = ({ projectId, currentAgent }: AgentCollaborati
     loadCollaborationLogs();
 
     // Only set up real-time subscription if we have a valid projectId
-    if (projectId) {
-      const channel = supabase
-        .channel('agent_collaboration')
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'agent_collaboration_logs',
-            filter: `project_id=eq.${projectId}`
-          },
-          (payload) => {
-            if (payload.eventType === 'INSERT') {
-              const newLog = payload.new as CollaborationLog;
-              setCollaborationLogs(prev => [newLog, ...prev]);
-            }
+    const channel = supabase
+      .channel('agent_collaboration')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'agent_collaboration_logs',
+          filter: `project_id=eq.${projectId}`
+        },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            const newLog = payload.new as CollaborationLog;
+            setCollaborationLogs(prev => [newLog, ...prev]);
           }
-        )
-        .subscribe();
+        }
+      )
+      .subscribe();
 
-      return () => {
-        supabase.removeChannel(channel);
-      };
-    }
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [projectId, toast]);
 
   const handleCollaborationRequest = async (request: CollaborationRequestData) => {
-    if (!projectId) {
+    // Validate projectId before making any API calls
+    if (!projectId || typeof projectId !== 'string' || projectId.includes(':')) {
       toast({
         title: "Error",
-        description: "Project ID is required to send a collaboration request.",
+        description: "Invalid project ID format. Please try again.",
         variant: "destructive",
       });
       return;
@@ -138,11 +138,11 @@ export const AgentCollaboration = ({ projectId, currentAgent }: AgentCollaborati
     }
   };
 
-  // If no projectId is provided, show a message
-  if (!projectId) {
+  // If no projectId is provided or it's invalid, show a message
+  if (!projectId || typeof projectId !== 'string' || projectId.includes(':')) {
     return (
       <div className="flex items-center justify-center p-4 text-muted-foreground">
-        No project selected
+        Invalid project ID format
       </div>
     );
   }
