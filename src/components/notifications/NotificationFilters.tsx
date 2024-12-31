@@ -2,8 +2,8 @@ import { Button } from "@/components/ui/button";
 import { Filter } from "lucide-react";
 
 interface NotificationFiltersProps {
-  filter: "all" | "campaign" | "insight";
-  setFilter: (filter: "all" | "campaign" | "insight") => void;
+  filter: "all" | "agent" | "system";
+  setFilter: (filter: "all" | "agent" | "system") => void;
   unreadOnly: boolean;
   setUnreadOnly: (unreadOnly: boolean) => void;
 }
@@ -29,18 +29,18 @@ export const NotificationFilters = ({
           <Button
             variant="ghost"
             size="sm"
-            className={filter === "campaign" ? "bg-sidebar-accent" : ""}
-            onClick={() => setFilter("campaign")}
+            className={filter === "agent" ? "bg-sidebar-accent" : ""}
+            onClick={() => setFilter("agent")}
           >
-            Campaign
+            Agent
           </Button>
           <Button
             variant="ghost"
             size="sm"
-            className={filter === "insight" ? "bg-sidebar-accent" : ""}
-            onClick={() => setFilter("insight")}
+            className={filter === "system" ? "bg-sidebar-accent" : ""}
+            onClick={() => setFilter("system")}
           >
-            Insights
+            System
           </Button>
         </div>
       </div>
