@@ -45,31 +45,11 @@ export const ChatArea = ({ chatTarget }: ChatAreaProps) => {
 
         if (fetchError) throw fetchError;
 
+        let currentThreadId: string;
+
         if (existingThread) {
-          setThreadId(existingThread.id);
-          
-          if (chatTarget.type === 'agent') {
-            // Load thread messages for agent chat
-            const { data: threadMessages, error: messagesError } = await supabase
-              .from('thread_messages')
-              .select('*')
-              .eq('thread_id', existingThread.id)
-              .order('timestamp', { ascending: true });
-
-            if (messagesError) throw messagesError;
-
-            if (threadMessages) {
-              const formattedMessages = threadMessages.map((msg, index) => ({
-                id: index + 1,
-                content: msg.content || '',
-                sender: msg.sender || 'Unknown',
-                timestamp: new Date(msg.timestamp || Date.now()),
-                agentId: chatTarget.type === 'agent' ? Number(chatTarget.id) : undefined,
-              }));
-
-              setMessages(formattedMessages);
-            }
-          }
+          currentThreadId = existingThread.id;
+          setThreadId(currentThreadId);
         } else {
           // Create new thread
           const { data: newThread, error: createError } = await supabase
@@ -85,22 +65,51 @@ export const ChatArea = ({ chatTarget }: ChatAreaProps) => {
             .single();
 
           if (createError) throw createError;
+          currentThreadId = newThread.id;
+          setThreadId(currentThreadId);
 
-          if (newThread) {
-            setThreadId(newThread.id);
-            
-            if (chatTarget.type === 'agent') {
-              const welcomeMessage = {
-                id: 1,
-                content: `Welcome! I'm ${chatTarget.name}, your AI assistant. How can I help you today?`,
-                sender: chatTarget.name,
-                timestamp: new Date(),
-                agentId: Number(chatTarget.id),
-              };
-              setMessages([welcomeMessage]);
-            }
+          if (chatTarget.type === 'agent') {
+            const welcomeMessage = {
+              id: 1,
+              content: `Welcome! I'm ${chatTarget.name}, your AI assistant. How can I help you today?`,
+              sender: chatTarget.name,
+              timestamp: new Date(),
+              agentId: Number(chatTarget.id),
+            };
+            setMessages([welcomeMessage]);
+
+            // Save welcome message to database
+            await supabase
+              .from('thread_messages')
+              .insert([{
+                thread_id: currentThreadId,
+                content: welcomeMessage.content,
+                sender: welcomeMessage.sender,
+              }]);
           }
         }
+
+        // Load thread messages
+        const { data: threadMessages, error: messagesError } = await supabase
+          .from('thread_messages')
+          .select('*')
+          .eq('thread_id', currentThreadId)
+          .order('timestamp', { ascending: true });
+
+        if (messagesError) throw messagesError;
+
+        if (threadMessages) {
+          const formattedMessages = threadMessages.map((msg, index) => ({
+            id: index + 1,
+            content: msg.content || '',
+            sender: msg.sender || 'Unknown',
+            timestamp: new Date(msg.timestamp || Date.now()),
+            agentId: chatTarget.type === 'agent' ? Number(chatTarget.id) : undefined,
+          }));
+
+          setMessages(formattedMessages);
+        }
+
       } catch (error) {
         console.error('Error loading thread:', error);
         toast({
@@ -114,14 +123,45 @@ export const ChatArea = ({ chatTarget }: ChatAreaProps) => {
     if (chatTarget) {
       loadThread();
     }
-  }, [chatTarget, toast]);
+
+    // Subscribe to real-time updates
+    const channel = supabase
+      .channel(`thread_${threadId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'thread_messages',
+          filter: `thread_id=eq.${threadId}`
+        },
+        (payload) => {
+          console.log('New message received:', payload);
+          const newMsg = payload.new;
+          setMessages(prev => [...prev, {
+            id: prev.length + 1,
+            content: newMsg.content || '',
+            sender: newMsg.sender || 'Unknown',
+            timestamp: new Date(newMsg.timestamp || Date.now()),
+            agentId: chatTarget.type === 'agent' ? Number(chatTarget.id) : undefined,
+          }]);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [chatTarget, toast, threadId]);
 
   const handleSendMessage = async () => {
     if (!newMessage.trim() || isLoading || !threadId) return;
     
     setIsLoading(true);
+    console.log('Sending message:', newMessage);
 
     try {
+      // Insert user message
       const { error: messageError } = await supabase
         .from('thread_messages')
         .insert([{
@@ -131,6 +171,15 @@ export const ChatArea = ({ chatTarget }: ChatAreaProps) => {
         }]);
 
       if (messageError) throw messageError;
+
+      // Update thread's last message
+      await supabase
+        .from('threads')
+        .update({
+          last_message: newMessage,
+          last_message_at: new Date().toISOString()
+        })
+        .eq('id', threadId);
 
       if (chatTarget.type === 'agent') {
         const agentName = chatTarget.name;
@@ -167,7 +216,6 @@ export const ChatArea = ({ chatTarget }: ChatAreaProps) => {
     }
   };
 
-  // Ensure we have a valid chatTarget before rendering
   if (!chatTarget) {
     return null;
   }

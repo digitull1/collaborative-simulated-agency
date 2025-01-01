@@ -1,5 +1,6 @@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ChatMessage } from "@/components/ChatMessage";
+import { useEffect, useRef } from "react";
 
 interface MessagesProps {
   messages: Array<{
@@ -14,8 +15,16 @@ interface MessagesProps {
 }
 
 export const Messages = ({ messages, isLoading, chatTargetName }: MessagesProps) => {
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages]);
+
   return (
-    <ScrollArea className="flex-1 p-4">
+    <ScrollArea className="flex-1 p-4" ref={scrollRef}>
       <div className="space-y-4">
         {messages.map((message) => (
           <ChatMessage key={message.id} message={message} />
