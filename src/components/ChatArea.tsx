@@ -58,15 +58,17 @@ export const ChatArea = ({ chatTarget }: ChatAreaProps) => {
 
             if (messagesError) throw messagesError;
 
-            const formattedMessages = threadMessages.map((msg, index) => ({
-              id: index + 1,
-              content: msg.content,
-              sender: msg.sender,
-              timestamp: new Date(msg.timestamp),
-              agentId: chatTarget.type === 'agent' ? Number(chatTarget.id) : undefined,
-            }));
+            if (threadMessages) {
+              const formattedMessages = threadMessages.map((msg, index) => ({
+                id: index + 1,
+                content: msg.content || '',
+                sender: msg.sender || 'Unknown',
+                timestamp: new Date(msg.timestamp || Date.now()),
+                agentId: chatTarget.type === 'agent' ? Number(chatTarget.id) : undefined,
+              }));
 
-            setMessages(formattedMessages);
+              setMessages(formattedMessages);
+            }
           }
         } else {
           // Create new thread
@@ -84,17 +86,19 @@ export const ChatArea = ({ chatTarget }: ChatAreaProps) => {
 
           if (createError) throw createError;
 
-          setThreadId(newThread.id);
-          
-          if (chatTarget.type === 'agent') {
-            const welcomeMessage = {
-              id: 1,
-              content: `Welcome! I'm ${chatTarget.name}, your AI assistant. How can I help you today?`,
-              sender: chatTarget.name,
-              timestamp: new Date(),
-              agentId: Number(chatTarget.id),
-            };
-            setMessages([welcomeMessage]);
+          if (newThread) {
+            setThreadId(newThread.id);
+            
+            if (chatTarget.type === 'agent') {
+              const welcomeMessage = {
+                id: 1,
+                content: `Welcome! I'm ${chatTarget.name}, your AI assistant. How can I help you today?`,
+                sender: chatTarget.name,
+                timestamp: new Date(),
+                agentId: Number(chatTarget.id),
+              };
+              setMessages([welcomeMessage]);
+            }
           }
         }
       } catch (error) {
@@ -107,7 +111,9 @@ export const ChatArea = ({ chatTarget }: ChatAreaProps) => {
       }
     };
 
-    loadThread();
+    if (chatTarget) {
+      loadThread();
+    }
   }, [chatTarget, toast]);
 
   const handleSendMessage = async () => {
@@ -135,15 +141,17 @@ export const ChatArea = ({ chatTarget }: ChatAreaProps) => {
         
         const response = await generateAgentResponse(agentName, newMessage, chatHistory);
         
-        const { error: responseError } = await supabase
-          .from('thread_messages')
-          .insert([{
-            thread_id: threadId,
-            content: response,
-            sender: agentName,
-          }]);
+        if (response) {
+          const { error: responseError } = await supabase
+            .from('thread_messages')
+            .insert([{
+              thread_id: threadId,
+              content: response,
+              sender: agentName,
+            }]);
 
-        if (responseError) throw responseError;
+          if (responseError) throw responseError;
+        }
       }
 
       setNewMessage("");
@@ -158,6 +166,11 @@ export const ChatArea = ({ chatTarget }: ChatAreaProps) => {
       setIsLoading(false);
     }
   };
+
+  // Ensure we have a valid chatTarget before rendering
+  if (!chatTarget) {
+    return null;
+  }
 
   return (
     <div className="flex h-full flex-col">
