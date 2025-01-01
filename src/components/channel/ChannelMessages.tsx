@@ -70,6 +70,7 @@ export const ChannelMessages = ({ channelId, channelName }: ChannelMessagesProps
         },
         (payload) => {
           const newMessage = payload.new;
+          console.log('New message received:', payload);
           setMessages(prev => [...prev, {
             id: prev.length + 1,
             content: newMessage.content,
@@ -114,7 +115,7 @@ export const ChannelMessages = ({ channelId, channelName }: ChannelMessagesProps
       // Handle agent responses for @mentions
       if (mentionedAgents) {
         for (const mention of mentionedAgents) {
-          const agentName = mention.substring(1);
+          const agentName = mention.substring(1); // Remove @ symbol
           setAgentTyping(agentName);
           
           try {
@@ -126,15 +127,17 @@ export const ChannelMessages = ({ channelId, channelName }: ChannelMessagesProps
             
             const response = await generateAgentResponse(agentName, newMessage, chatHistory);
             
-            const { error: agentError } = await supabase
-              .from('thread_messages')
-              .insert([{
-                thread_id: channelId,
-                content: response,
-                sender: `@${agentName}`,
-              }]);
+            if (response) {
+              const { error: agentError } = await supabase
+                .from('thread_messages')
+                .insert([{
+                  thread_id: channelId,
+                  content: response,
+                  sender: `@${agentName}`,
+                }]);
 
-            if (agentError) throw agentError;
+              if (agentError) throw agentError;
+            }
           } catch (error) {
             console.error(`Error getting response from agent ${agentName}:`, error);
             toast({
