@@ -1,10 +1,21 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { Navigate } from 'react-router-dom';
 import { useToast } from '@/components/ui/use-toast';
+import { useEffect } from 'react';
 
 export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { session, loading } = useAuth();
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (!loading && !session) {
+      toast({
+        title: "Authentication required",
+        description: "Please log in to access this page.",
+        variant: "destructive",
+      });
+    }
+  }, [loading, session, toast]);
 
   if (loading) {
     return (
@@ -15,11 +26,6 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   }
 
   if (!session) {
-    toast({
-      title: "Authentication required",
-      description: "Please log in to access this page.",
-      variant: "destructive",
-    });
     return <Navigate to="/login" replace />;
   }
 
