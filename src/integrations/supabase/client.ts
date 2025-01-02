@@ -8,11 +8,24 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: true,
-    flowType: 'pkce'
+    flowType: 'pkce',
+    storage: localStorage
   },
   global: {
     headers: {
-      'apikey': supabaseAnonKey
+      'apikey': supabaseAnonKey,
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*'
     }
+  },
+  db: {
+    schema: 'public'
+  }
+});
+
+// Add error handling for failed requests
+supabase.auth.onAuthStateChange((event, session) => {
+  if (event === 'SIGNED_OUT') {
+    localStorage.clear();
   }
 });
