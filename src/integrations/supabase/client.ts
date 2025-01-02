@@ -10,6 +10,11 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     detectSessionInUrl: true,
     flowType: 'pkce',
     storage: localStorage
+  },
+  global: {
+    headers: {
+      'apikey': supabaseAnonKey
+    }
   }
 });
 
@@ -17,5 +22,12 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 supabase.auth.onAuthStateChange((event, session) => {
   if (event === 'SIGNED_OUT') {
     localStorage.clear();
+  } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+    console.log('Auth state updated:', event);
   }
+});
+
+// Add error logging
+supabase.auth.onError((error) => {
+  console.error('Supabase auth error:', error);
 });
