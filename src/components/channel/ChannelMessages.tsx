@@ -1,11 +1,12 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Messages } from "@/components/Messages";
 import { MessageInput } from "@/components/MessageInput";
 import { generateAgentResponse } from "@/services/ai";
 import { Loader2 } from "lucide-react";
-import { useChannel } from "@/hooks/useChannel";
+import { useMessagePagination } from "@/hooks/useMessagePagination";
 import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
 
 interface ChannelMessagesProps {
   channelId: string;
@@ -17,7 +18,7 @@ export const ChannelMessages = ({ channelId, channelName }: ChannelMessagesProps
   const [newMessage, setNewMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [agentTyping, setAgentTyping] = useState<string | null>(null);
-  const { messages, isLoading: messagesLoading, hasMore, loadMore } = useChannel(channelId);
+  const { messages, isLoading: messagesLoading, hasMore, loadMore, reset } = useMessagePagination(channelId);
 
   const handleSendMessage = async () => {
     if (!newMessage.trim() || isLoading) return;
@@ -75,6 +76,36 @@ export const ChannelMessages = ({ channelId, channelName }: ChannelMessagesProps
             setAgentTyping(null);
           }
         }
+      } else {
+        // Default to Sophia if no agent is mentioned
+        setAgentTyping("Sophia");
+        try {
+          const chatHistory = messages.slice(-5).map(msg => ({
+            sender: msg.sender,
+            content: msg.content
+          }));
+          
+          const response = await generateAgentResponse("Sophia", newMessage, chatHistory);
+          
+          if (response) {
+            await supabase
+              .from('thread_messages')
+              .insert([{
+                thread_id: channelId,
+                content: response,
+                sender: "@Sophia",
+              }]);
+          }
+        } catch (error) {
+          console.error('Error getting response from Sophia:', error);
+          toast({
+            title: "Agent Error",
+            description: "Failed to get response from Sophia. Please try again.",
+            variant: "destructive",
+          });
+        } finally {
+          setAgentTyping(null);
+        }
       }
 
       setNewMessage("");
@@ -92,6 +123,22 @@ export const ChannelMessages = ({ channelId, channelName }: ChannelMessagesProps
 
   return (
     <div className="flex flex-col h-full">
+      {hasMore && (
+        <div className="p-2 text-center">
+          <Button 
+            variant="ghost" 
+            onClick={() => loadMore()}
+            disabled={messagesLoading}
+          >
+            {messagesLoading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              'Load More'
+            )}
+          </Button>
+        </div>
+      )}
+      
       <Messages 
         messages={messages}
         isLoading={messagesLoading}
