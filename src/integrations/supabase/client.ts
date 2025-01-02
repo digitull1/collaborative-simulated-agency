@@ -10,19 +10,21 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     detectSessionInUrl: true,
     flowType: 'pkce',
     storage: localStorage
+  },
+  global: {
+    headers: {
+      'apikey': supabaseAnonKey
+    }
   }
 });
 
-// Add error handling for failed requests
-supabase.auth.onAuthStateChange((event, session) => {
+// Add auth state change handler
+supabase.auth.onAuthStateChange((event) => {
   if (event === 'SIGNED_OUT') {
     localStorage.clear();
   } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
     console.log('Auth state updated:', event);
   } else if (event === 'USER_UPDATED') {
     console.log('User profile updated');
-  } else if (event === 'USER_DELETED') {
-    localStorage.clear();
-    console.log('User account deleted');
   }
 });
