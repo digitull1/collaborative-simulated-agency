@@ -24,7 +24,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const { toast } = useToast();
 
   useEffect(() => {
-    // Get initial session
+    let mounted = true;
+
     const initializeAuth = async () => {
       try {
         const { data: { session: initialSession }, error } = await supabase.auth.getSession();
@@ -35,7 +36,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           return;
         }
 
-        if (initialSession) {
+        if (initialSession && mounted) {
           setSession(initialSession);
           setUser(initialSession.user);
         }
@@ -43,29 +44,37 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         console.error('Auth initialization error:', error);
         await handleAuthError(error);
       } finally {
-        setLoading(false);
+        if (mounted) {
+          setLoading(false);
+        }
       }
     };
 
     const handleAuthError = async (error: any) => {
+      if (!mounted) return;
+      
       console.error('Auth error:', error);
       
       // Clear session data
       setSession(null);
       setUser(null);
       
-      // Sign out from Supabase
-      await supabase.auth.signOut();
-      
-      // Redirect to login
-      navigate('/login');
-      
-      // Show error toast
-      toast({
-        title: "Authentication Error",
-        description: "Please sign in again to continue.",
-        variant: "destructive",
-      });
+      try {
+        // Sign out from Supabase
+        await supabase.auth.signOut();
+        
+        // Redirect to login
+        navigate('/login');
+        
+        // Show error toast
+        toast({
+          title: "Authentication Error",
+          description: "Please sign in again to continue.",
+          variant: "destructive",
+        });
+      } catch (signOutError) {
+        console.error('Error during sign out:', signOutError);
+      }
     };
 
     initializeAuth();
@@ -74,6 +83,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+      if (!mounted) return;
+      
       console.log('Auth state change:', event);
       
       try {
@@ -119,11 +130,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         console.error('Error handling auth state change:', error);
         await handleAuthError(error);
       } finally {
-        setLoading(false);
+        if (mounted) {
+          setLoading(false);
+        }
       }
     });
 
     return () => {
+      mounted = false;
       subscription.unsubscribe();
     };
   }, [navigate, toast]);
