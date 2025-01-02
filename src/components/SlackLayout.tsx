@@ -5,6 +5,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { MainHeader } from "@/components/layout/MainHeader";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { MainContent } from "@/components/layout/MainContent";
+import { getLastActiveChannel } from "@/utils/channelUtils";
 
 export type ChatTarget = {
   type: "agent" | "channel";
@@ -23,17 +24,7 @@ export const SlackLayout = () => {
       if (!user) return;
       
       try {
-        const { data: lastThread, error: threadError } = await supabase
-          .from('threads')
-          .select('*')
-          .eq('type', 'channel')
-          .order('last_message_at', { ascending: false })
-          .limit(1)
-          .single();
-
-        if (threadError && threadError.code !== 'PGRST116') {
-          throw threadError;
-        }
+        const lastThread = await getLastActiveChannel();
 
         if (lastThread) {
           setActiveChatTarget({
@@ -42,6 +33,7 @@ export const SlackLayout = () => {
             name: lastThread.title
           });
         } else {
+          // Default to first agent if no active channel
           setActiveChatTarget({
             type: "agent",
             id: 1,
