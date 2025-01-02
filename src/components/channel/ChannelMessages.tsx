@@ -20,6 +20,11 @@ export const ChannelMessages = ({ channelId, channelName }: ChannelMessagesProps
   const [agentTyping, setAgentTyping] = useState<string | null>(null);
   const { messages, isLoading: messagesLoading, hasMore, loadMore, reset } = useMessagePagination(channelId);
 
+  const extractMentions = (message: string): string[] => {
+    const mentions = message.match(/@(\w+\s+\w+|\w+)/g) || [];
+    return mentions.map(mention => mention.substring(1));
+  };
+
   const handleSendMessage = async () => {
     if (!newMessage.trim() || isLoading) return;
 
@@ -27,80 +32,65 @@ export const ChannelMessages = ({ channelId, channelName }: ChannelMessagesProps
 
     try {
       // Extract @mentions from the message
-      const mentionedAgents = newMessage.match(/@(\w+)/g);
+      const mentionedAgents = extractMentions(newMessage);
       
       // Send user message
-      const { error: messageError } = await supabase
+      const { data: messageData, error: messageError } = await supabase
         .from('thread_messages')
         .insert([{
           thread_id: channelId,
           content: newMessage,
           sender: "You",
-        }]);
+        }])
+        .select()
+        .single();
 
       if (messageError) throw messageError;
 
-      // Handle agent responses for @mentions
-      if (mentionedAgents) {
-        for (const mention of mentionedAgents) {
-          const agentName = mention.substring(1);
-          setAgentTyping(agentName);
-          
-          try {
-            const chatHistory = messages.slice(-5).map(msg => ({
-              sender: msg.sender,
-              content: msg.content
-            }));
-            
-            const response = await generateAgentResponse(agentName, newMessage, chatHistory);
-            
-            if (response) {
-              const { error: agentError } = await supabase
-                .from('thread_messages')
-                .insert([{
-                  thread_id: channelId,
-                  content: response,
-                  sender: `@${agentName}`,
-                }]);
+      // Record mentions
+      if (mentionedAgents.length > 0) {
+        const mentionsToInsert = mentionedAgents.map(agent => ({
+          thread_id: channelId,
+          message_id: messageData.id,
+          agent_name: agent,
+        }));
 
-              if (agentError) throw agentError;
-            }
-          } catch (error) {
-            console.error(`Error getting response from agent ${agentName}:`, error);
-            toast({
-              title: "Agent Error",
-              description: `Failed to get response from ${agentName}. Please try again.`,
-              variant: "destructive",
-            });
-          } finally {
-            setAgentTyping(null);
-          }
-        }
-      } else {
-        // Default to Sophia if no agent is mentioned
-        setAgentTyping("Sophia");
+        await supabase
+          .from('agent_mentions')
+          .insert(mentionsToInsert);
+      }
+
+      // Handle agent responses
+      const defaultAgent = "Sophia";
+      const agentsToRespond = mentionedAgents.length > 0 ? mentionedAgents : [defaultAgent];
+
+      for (const agent of agentsToRespond) {
+        setAgentTyping(agent);
+        
         try {
           const chatHistory = messages.slice(-5).map(msg => ({
             sender: msg.sender,
             content: msg.content
           }));
           
-          const response = await generateAgentResponse("Sophia", newMessage, chatHistory);
+          const response = await generateAgentResponse(agent, newMessage, chatHistory);
           
           if (response) {
-            await supabase
+            const { error: agentError } = await supabase
               .from('thread_messages')
               .insert([{
                 thread_id: channelId,
                 content: response,
-                sender: "@Sophia",
+                sender: `@${agent}`,
               }]);
+
+            if (agentError) throw agentError;
           }
         } catch (error) {
-          console.error('Error getting response from Sophia:', error);
+          console.error(`Error getting response from agent ${agent}:`, error);
           toast({
             title: "Agent Error",
-            description: "Failed to get response from Sophia. Please try again.",
+            description: `Failed to get response from ${agent}. Please try again.`,
             variant: "destructive",
           });
         } finally {
