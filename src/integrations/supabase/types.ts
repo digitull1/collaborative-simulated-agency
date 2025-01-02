@@ -151,6 +151,51 @@ export type Database = {
           },
         ]
       }
+      agent_mentions: {
+        Row: {
+          agent_name: string
+          context: Json | null
+          id: string
+          mentioned_at: string | null
+          message_id: string | null
+          resolved: boolean | null
+          thread_id: string | null
+        }
+        Insert: {
+          agent_name: string
+          context?: Json | null
+          id?: string
+          mentioned_at?: string | null
+          message_id?: string | null
+          resolved?: boolean | null
+          thread_id?: string | null
+        }
+        Update: {
+          agent_name?: string
+          context?: Json | null
+          id?: string
+          mentioned_at?: string | null
+          message_id?: string | null
+          resolved?: boolean | null
+          thread_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_mentions_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "thread_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_mentions_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       collaboration_metrics: {
         Row: {
           agent_name: string

@@ -47,17 +47,26 @@ export const ChannelMessages = ({ channelId, channelName }: ChannelMessagesProps
 
       if (messageError) throw messageError;
 
-      // Record mentions
+      // Record mentions in a separate table
       if (mentionedAgents.length > 0) {
-        const mentionsToInsert = mentionedAgents.map(agent => ({
-          thread_id: channelId,
-          message_id: messageData.id,
-          agent_name: agent,
-        }));
-
-        await supabase
+        const { error: mentionsError } = await supabase
           .from('agent_mentions')
-          .insert(mentionsToInsert);
+          .insert(
+            mentionedAgents.map(agent => ({
+              thread_id: channelId,
+              message_id: messageData.id,
+              agent_name: agent,
+              context: {
+                message: newMessage,
+                timestamp: new Date().toISOString()
+              }
+            }))
+          );
+
+        if (mentionsError) {
+          console.error('Error recording mentions:', mentionsError);
+          // Don't throw - we want to continue even if mention recording fails
+        }
       }
 
       // Handle agent responses
