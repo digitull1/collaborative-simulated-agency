@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
@@ -22,6 +22,67 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  const handleAuthError = useCallback(async (error: any) => {
+    console.error('Auth error:', error);
+    
+    setSession(null);
+    setUser(null);
+    
+    try {
+      await supabase.auth.signOut();
+      navigate('/login');
+      
+      toast({
+        title: "Authentication Error",
+        description: "Please sign in again to continue.",
+        variant: "destructive",
+      });
+    } catch (signOutError) {
+      console.error('Error during sign out:', signOutError);
+    }
+  }, [navigate, toast]);
+
+  const handleAuthStateChange = useCallback(async (event: string, newSession: Session | null) => {
+    console.log('Auth state change:', event);
+    
+    try {
+      switch (event) {
+        case 'SIGNED_IN':
+          if (newSession) {
+            setSession(newSession);
+            setUser(newSession.user);
+          }
+          break;
+          
+        case 'SIGNED_OUT':
+          setSession(null);
+          setUser(null);
+          navigate('/login');
+          toast({
+            title: "Signed Out",
+            description: "You have been signed out successfully.",
+          });
+          break;
+          
+        case 'TOKEN_REFRESHED':
+        case 'USER_UPDATED':
+          if (newSession) {
+            setSession(newSession);
+            setUser(newSession.user);
+          }
+          break;
+          
+        default:
+          if (!newSession) {
+            setSession(null);
+            setUser(null);
+          }
+      }
+    } catch (error) {
+      await handleAuthError(error);
+    }
+  }, [navigate, toast, handleAuthError]);
 
   useEffect(() => {
     let mounted = true;
@@ -50,100 +111,26 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
     };
 
-    const handleAuthError = async (error: any) => {
-      if (!mounted) return;
-      
-      console.error('Auth error:', error);
-      
-      // Clear session data
-      setSession(null);
-      setUser(null);
-      
-      try {
-        // Sign out from Supabase
-        await supabase.auth.signOut();
-        
-        // Redirect to login
-        navigate('/login');
-        
-        // Show error toast
-        toast({
-          title: "Authentication Error",
-          description: "Please sign in again to continue.",
-          variant: "destructive",
-        });
-      } catch (signOutError) {
-        console.error('Error during sign out:', signOutError);
-      }
-    };
-
     initializeAuth();
 
-    // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, newSession) => {
-      if (!mounted) return;
-      
-      console.log('Auth state change:', event);
-      
-      try {
-        switch (event) {
-          case 'SIGNED_IN':
-            if (newSession) {
-              setSession(newSession);
-              setUser(newSession.user);
-            }
-            break;
-            
-          case 'SIGNED_OUT':
-            setSession(null);
-            setUser(null);
-            navigate('/login');
-            toast({
-              title: "Signed Out",
-              description: "You have been signed out successfully.",
-            });
-            break;
-            
-          case 'TOKEN_REFRESHED':
-            if (newSession) {
-              setSession(newSession);
-              setUser(newSession.user);
-            }
-            break;
-            
-          case 'USER_UPDATED':
-            if (newSession) {
-              setSession(newSession);
-              setUser(newSession.user);
-            }
-            break;
-            
-          default:
-            if (!newSession) {
-              setSession(null);
-              setUser(null);
-            }
-        }
-      } catch (error) {
-        console.error('Error handling auth state change:', error);
-        await handleAuthError(error);
-      } finally {
-        if (mounted) {
-          setLoading(false);
-        }
-      }
-    });
+    } = supabase.auth.onAuthStateChange(handleAuthStateChange);
 
     return () => {
       mounted = false;
-      subscription.unsubscribe();
+      subscription?.unsubscribe();
     };
-  }, [navigate, toast]);
+  }, [handleAuthStateChange, handleAuthError]);
+
+  const contextValue = {
+    session,
+    user,
+    loading,
+  };
 
   return (
-    <AuthContext.Provider value={{ session, user, loading }}>
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );
