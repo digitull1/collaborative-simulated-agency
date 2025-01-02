@@ -27,25 +27,45 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     // Get initial session
     const initializeAuth = async () => {
       try {
-        const { data: { session }, error } = await supabase.auth.getSession();
+        const { data: { session: initialSession }, error } = await supabase.auth.getSession();
         
         if (error) {
           console.error('Auth initialization error:', error);
-          // Clear any invalid session data
-          await supabase.auth.signOut();
-          setSession(null);
-          setUser(null);
-          navigate('/login');
+          await handleAuthError(error);
           return;
         }
 
-        setSession(session);
-        setUser(session?.user ?? null);
+        if (initialSession) {
+          setSession(initialSession);
+          setUser(initialSession.user);
+        }
       } catch (error) {
         console.error('Auth initialization error:', error);
+        await handleAuthError(error);
       } finally {
         setLoading(false);
       }
+    };
+
+    const handleAuthError = async (error: any) => {
+      console.error('Auth error:', error);
+      
+      // Clear session data
+      setSession(null);
+      setUser(null);
+      
+      // Sign out from Supabase
+      await supabase.auth.signOut();
+      
+      // Redirect to login
+      navigate('/login');
+      
+      // Show error toast
+      toast({
+        title: "Authentication Error",
+        description: "Please sign in again to continue.",
+        variant: "destructive",
+      });
     };
 
     initializeAuth();
@@ -53,30 +73,54 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
+    } = supabase.auth.onAuthStateChange(async (event, newSession) => {
       console.log('Auth state change:', event);
       
-      if (event === 'TOKEN_REFRESHED') {
-        setSession(session);
-        setUser(session?.user ?? null);
-      } else if (event === 'SIGNED_OUT') {
-        setSession(null);
-        setUser(null);
-        navigate('/login');
-        toast({
-          title: "Session ended",
-          description: "Please log in again to continue.",
-          variant: "destructive",
-        });
-      } else if (session) {
-        setSession(session);
-        setUser(session?.user ?? null);
-      } else {
-        setSession(null);
-        setUser(null);
+      try {
+        switch (event) {
+          case 'SIGNED_IN':
+            if (newSession) {
+              setSession(newSession);
+              setUser(newSession.user);
+            }
+            break;
+            
+          case 'SIGNED_OUT':
+            setSession(null);
+            setUser(null);
+            navigate('/login');
+            toast({
+              title: "Signed Out",
+              description: "You have been signed out successfully.",
+            });
+            break;
+            
+          case 'TOKEN_REFRESHED':
+            if (newSession) {
+              setSession(newSession);
+              setUser(newSession.user);
+            }
+            break;
+            
+          case 'USER_UPDATED':
+            if (newSession) {
+              setSession(newSession);
+              setUser(newSession.user);
+            }
+            break;
+            
+          default:
+            if (!newSession) {
+              setSession(null);
+              setUser(null);
+            }
+        }
+      } catch (error) {
+        console.error('Error handling auth state change:', error);
+        await handleAuthError(error);
+      } finally {
+        setLoading(false);
       }
-      
-      setLoading(false);
     });
 
     return () => {
