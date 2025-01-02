@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
@@ -86,6 +86,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   useEffect(() => {
     let mounted = true;
+    let authListener: any = null;
 
     const initializeAuth = async () => {
       try {
@@ -113,21 +114,25 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     initializeAuth();
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(handleAuthStateChange);
+    try {
+      authListener = supabase.auth.onAuthStateChange(handleAuthStateChange);
+    } catch (error) {
+      console.error('Error setting up auth listener:', error);
+    }
 
     return () => {
       mounted = false;
-      subscription?.unsubscribe();
+      if (authListener?.subscription?.unsubscribe) {
+        authListener.subscription.unsubscribe();
+      }
     };
   }, [handleAuthStateChange, handleAuthError]);
 
-  const contextValue = {
+  const contextValue = useMemo(() => ({
     session,
     user,
     loading,
-  };
+  }), [session, user, loading]);
 
   return (
     <AuthContext.Provider value={contextValue}>
