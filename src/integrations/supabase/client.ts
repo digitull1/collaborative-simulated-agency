@@ -8,12 +8,25 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: true,
-    flowType: 'pkce'
+    flowType: 'pkce',
+    storage: localStorage,
+    storageKey: 'supabase.auth.token',
   },
   global: {
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${supabaseAnonKey}`
+      'apikey': supabaseAnonKey,
     }
+  },
+  db: {
+    schema: 'public'
+  }
+});
+
+// Add error logging for debugging
+supabase.auth.onAuthStateChange((event, session) => {
+  console.log('Supabase auth event:', event);
+  if (session) {
+    console.log('Session exists:', !!session);
   }
 });
