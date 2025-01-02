@@ -11,15 +11,9 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     flowType: 'pkce',
     storage: localStorage
   },
-  global: {
-    headers: {
-      'apikey': supabaseAnonKey,
-      'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*'
-    }
-  },
-  db: {
-    schema: 'public'
+  headers: {
+    'apikey': supabaseAnonKey,
+    'Authorization': `Bearer ${supabaseAnonKey}`
   }
 });
 
