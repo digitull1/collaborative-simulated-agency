@@ -5,11 +5,8 @@ import Index from '@/pages/Index';
 import Login from '@/pages/Login';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
-import { useAuthStateChange } from '@/hooks/useAuthStateChange';
 
 const App = () => {
-  useAuthStateChange();
-
   return (
     <Router>
       <AuthProvider>
