@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Messages } from "@/components/Messages";
@@ -23,9 +23,12 @@ export const ChannelMessages = ({ channelId, channelName }: ChannelMessagesProps
   const [newMessage, setNewMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [agentTyping, setAgentTyping] = useState<string | null>(null);
+  const mounted = useRef(true);
 
   // Load initial messages and set up real-time listener
   useEffect(() => {
+    let channel: any;
+
     const loadMessages = async () => {
       try {
         const { data: threadMessages, error } = await supabase
@@ -36,29 +39,33 @@ export const ChannelMessages = ({ channelId, channelName }: ChannelMessagesProps
 
         if (error) throw error;
 
-        const formattedMessages = threadMessages.map((msg, index) => ({
-          id: index + 1,
-          content: msg.content,
-          sender: msg.sender,
-          timestamp: new Date(msg.timestamp),
-          agentId: msg.sender.startsWith('@') ? Number(msg.sender.substring(1)) : undefined,
-        }));
+        if (mounted.current) {
+          const formattedMessages = threadMessages.map((msg, index) => ({
+            id: index + 1,
+            content: msg.content,
+            sender: msg.sender,
+            timestamp: new Date(msg.timestamp),
+            agentId: msg.sender.startsWith('@') ? Number(msg.sender.substring(1)) : undefined,
+          }));
 
-        setMessages(formattedMessages);
+          setMessages(formattedMessages);
+        }
       } catch (error) {
         console.error('Error loading messages:', error);
-        toast({
-          title: "Error",
-          description: "Failed to load message history. Please try again.",
-          variant: "destructive",
-        });
+        if (mounted.current) {
+          toast({
+            title: "Error",
+            description: "Failed to load message history. Please try again.",
+            variant: "destructive",
+          });
+        }
       }
     };
 
     loadMessages();
 
     // Subscribe to real-time updates
-    const channel = supabase
+    channel = supabase
       .channel(`channel-${channelId}`)
       .on(
         'postgres_changes',
@@ -69,26 +76,31 @@ export const ChannelMessages = ({ channelId, channelName }: ChannelMessagesProps
           filter: `thread_id=eq.${channelId}`
         },
         (payload) => {
-          const newMessage = payload.new;
-          console.log('New message received:', payload);
-          setMessages(prev => [...prev, {
-            id: prev.length + 1,
-            content: newMessage.content,
-            sender: newMessage.sender,
-            timestamp: new Date(newMessage.timestamp),
-            agentId: newMessage.sender.startsWith('@') ? Number(newMessage.sender.substring(1)) : undefined,
-          }]);
+          if (mounted.current) {
+            console.log('New message received:', payload);
+            const newMessage = payload.new;
+            setMessages(prev => [...prev, {
+              id: prev.length + 1,
+              content: newMessage.content,
+              sender: newMessage.sender,
+              timestamp: new Date(newMessage.timestamp),
+              agentId: newMessage.sender.startsWith('@') ? Number(newMessage.sender.substring(1)) : undefined,
+            }]);
 
-          // Clear agent typing indicator if this is an agent response
-          if (newMessage.sender.startsWith('@')) {
-            setAgentTyping(null);
+            // Clear agent typing indicator if this is an agent response
+            if (newMessage.sender.startsWith('@')) {
+              setAgentTyping(null);
+            }
           }
         }
       )
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      mounted.current = false;
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
     };
   }, [channelId, toast]);
 
@@ -113,7 +125,7 @@ export const ChannelMessages = ({ channelId, channelName }: ChannelMessagesProps
       if (messageError) throw messageError;
 
       // Handle agent responses for @mentions
-      if (mentionedAgents) {
+      if (mentionedAgents && mounted.current) {
         for (const mention of mentionedAgents) {
           const agentName = mention.substring(1); // Remove @ symbol
           setAgentTyping(agentName);
@@ -127,7 +139,7 @@ export const ChannelMessages = ({ channelId, channelName }: ChannelMessagesProps
             
             const response = await generateAgentResponse(agentName, newMessage, chatHistory);
             
-            if (response) {
+            if (response && mounted.current) {
               const { error: agentError } = await supabase
                 .from('thread_messages')
                 .insert([{
@@ -140,27 +152,37 @@ export const ChannelMessages = ({ channelId, channelName }: ChannelMessagesProps
             }
           } catch (error) {
             console.error(`Error getting response from agent ${agentName}:`, error);
-            toast({
-              title: "Agent Error",
-              description: `Failed to get response from ${agentName}. Please try again.`,
-              variant: "destructive",
-            });
+            if (mounted.current) {
+              toast({
+                title: "Agent Error",
+                description: `Failed to get response from ${agentName}. Please try again.`,
+                variant: "destructive",
+              });
+            }
           } finally {
-            setAgentTyping(null);
+            if (mounted.current) {
+              setAgentTyping(null);
+            }
           }
         }
       }
 
-      setNewMessage("");
+      if (mounted.current) {
+        setNewMessage("");
+      }
     } catch (error) {
       console.error('Error sending message:', error);
-      toast({
-        title: "Error",
-        description: "Failed to send message. Please try again.",
-        variant: "destructive",
-      });
+      if (mounted.current) {
+        toast({
+          title: "Error",
+          description: "Failed to send message. Please try again.",
+          variant: "destructive",
+        });
+      }
     } finally {
-      setIsLoading(false);
+      if (mounted.current) {
+        setIsLoading(false);
+      }
     }
   };
 
