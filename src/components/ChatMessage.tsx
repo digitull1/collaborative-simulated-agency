@@ -8,7 +8,7 @@ interface ChatMessageProps {
     id: number;
     content: string;
     sender: string;
-    timestamp: Date;
+    timestamp: Date | string;
     agentId?: number;
     threadId?: string;
     reactions?: {
@@ -23,6 +23,11 @@ interface ChatMessageProps {
 export const ChatMessage = ({ message, onReply, onReact }: ChatMessageProps) => {
   const isAgent = message.agentId !== undefined;
   const [showActions, setShowActions] = useState(false);
+
+  // Convert timestamp to Date if it's a string
+  const timestamp = message.timestamp instanceof Date 
+    ? message.timestamp 
+    : new Date(message.timestamp);
   
   return (
     <div 
@@ -47,7 +52,7 @@ export const ChatMessage = ({ message, onReply, onReact }: ChatMessageProps) => 
         <div className="flex items-center space-x-2">
           <span className="text-sm font-medium">{message.sender}</span>
           <span className="text-xs text-muted-foreground">
-            {message.timestamp.toLocaleTimeString()}
+            {timestamp.toLocaleTimeString()}
           </span>
         </div>
         <div className={`mt-1 rounded-lg p-3 relative group ${
